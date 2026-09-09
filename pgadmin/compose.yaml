@@ -1,0 +1,31 @@
+services:
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: lord@admin.fr
+      PGADMIN_DEFAULT_PASSWORD: g
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "127.0.0.1:5433:80"
+    volumes:
+      - ./data:/var/lib/pgadmin
+    networks:
+      - peaas
+
+networks:
+  peaas:
+    external: true

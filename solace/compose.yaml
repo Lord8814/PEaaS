@@ -1,0 +1,41 @@
+services:
+  solace:
+    image: solace/solace-pubsub-standard:latest
+    container_name: solace
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+    shm_size: 1g
+    ulimits:
+      core: -1
+      nofile:
+        soft: 1048576
+        hard: 1048576
+    environment:
+      username_admin_globalaccesslevel: admin
+      username_admin_password: admin
+      system_scaling_maxconnectioncount: "100"
+    volumes:
+      - /mnt/solace/data:/var/lib/solace
+    ports:
+      - "8080:8080"       # console admin
+      - "55555:55555"     # SMF
+      - "1883:1883"       # MQTT
+      - "8000:8000"       # MQTT websocket
+      - "5672:5672"       # AMQP
+      - "9000:9000"       # REST
+    networks:
+      - peaas
+networks:
+  peaas:
+    external: true

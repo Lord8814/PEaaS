@@ -1,0 +1,65 @@
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 780px;
+  margin: 40px auto;
+  padding: 0 20px;
+  color: #222;
+  line-height: 1.5;
+}
+
+h1 { font-size: 1.5rem; }
+h2 { font-size: 1.1rem; margin-top: 32px; }
+
+.aide { color: #666; font-size: 0.9em; }
+code { background: #f4f4f4; padding: 1px 4px; border-radius: 3px; }
+
+/* Onglets */
+.onglets { border-bottom: 2px solid #ddd; margin-bottom: 24px; }
+.onglet {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  padding: 10px 16px; margin-bottom: -2px; cursor: pointer; font-size: 1em;
+}
+.onglet.actif { border-bottom-color: #333; font-weight: 600; }
+
+.cache { display: none; }
+
+/* Liste de composants */
+ul { list-style: none; padding: 0; }
+li { margin: 8px 0; }
+label { cursor: pointer; }
+.auto { color: #888; font-style: italic; font-size: 0.9em; }
+
+/* Controles */
+.actions, .controles {
+  margin: 16px 0; display: flex; gap: 10px;
+  align-items: flex-end; flex-wrap: wrap;
+}
+.controles label { display: flex; flex-direction: column; font-size: 0.9em; gap: 4px; }
+input, select { padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+input[type=number] { width: 90px; }
+
+button {
+  padding: 9px 16px; cursor: pointer; border: 1px solid #333;
+  background: #333; color: #fff; border-radius: 4px; font-size: 0.95em;
+}
+button.secondaire { background: #fff; color: #333; }
+button:disabled { opacity: 0.5; cursor: wait; }
+
+/* Retours */
+.statut { margin: 12px 0; min-height: 1.2em; }
+.erreur { color: #b00; }
+.succes { color: #060; }
+
+pre {
+  background: #f7f7f7; padding: 14px; border-radius: 4px;
+  overflow-x: auto; font-size: 0.85em; max-height: 340px;
+}
+
+table { border-collapse: collapse; margin: 10px 0; font-size: 0.9em; }
+th, td { border: 1px solid #ddd; padding: 6px 12px; text-align: left; }
+th { background: #f4f4f4; }
+
+.barre {
+  display: inline-block; height: 14px; background: #4a7;
+  vertical-align: middle; margin-right: 6px; border-radius: 2px;
+}

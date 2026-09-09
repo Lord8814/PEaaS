@@ -1,0 +1,32 @@
+services:
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.11
+    container_name: etcd
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+    environment:
+      ETCD_NAME: etcd0
+      ETCD_DATA_DIR: /etcd-data
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd:2379
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd:2380
+      ETCD_INITIAL_CLUSTER: etcd0=http://etcd:2380
+      ETCD_INITIAL_CLUSTER_STATE: new
+      ETCD_INITIAL_CLUSTER_TOKEN: apisix-cluster
+      ALLOW_NONE_AUTHENTICATION: "yes"
+    volumes:
+      - /mnt/etcd/data:/etcd-data
+#    ports:   # depublie (durcissement)
+#      - "2379:2379"
+    networks:
+      - peaas
+networks:
+  peaas:
+    external: true

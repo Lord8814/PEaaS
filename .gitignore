@@ -1,0 +1,10 @@
+*/data/
+
+# Secrets
+**/.env
+*.pem
+*.key
+*.crt
+*.p12
+.claude/settings.local.json
+web/app/node_modules/

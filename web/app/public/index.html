@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PEaaS - Console</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<h1>Console PEaaS</h1>
+
+<nav class="onglets">
+  <button class="onglet actif" data-vue="package">Package</button>
+  <button class="onglet" data-vue="tests">Tests &amp; demo</button>
+</nav>
+
+<!-- ============ Onglet Package ============ -->
+<section id="vue-package">
+  <p>Selectionnez les composants a deployer :</p>
+  <ul id="liste"></ul>
+
+  <div class="actions">
+    <button id="generer">Telecharger le package (tar.gz)</button>
+    <button id="composeSeul" class="secondaire">Compose seul</button>
+    <button id="apercu" class="secondaire">Apercu</button>
+  </div>
+
+  <div id="statutPackage" class="statut"></div>
+  <pre id="apercuCompose" class="cache"></pre>
+</section>
+
+<!-- ============ Onglet Tests ============ -->
+<section id="vue-tests" class="cache">
+
+  <h2>Etat des composants</h2>
+  <button id="btnHealth">Verifier</button>
+  <div id="resHealth" class="statut"></div>
+
+  <h2>Load balancing</h2>
+  <p class="aide">
+    Appels successifs via APISIX. Le compteur par instance verifie
+    la repartition round robin entre les deux Node-RED.
+  </p>
+  <div class="controles">
+    <label>Route
+      <select id="lbRoute">
+        <option value="get">GET /api/get</option>
+        <option value="post">POST /post/data (insertion BDD)</option>
+      </select>
+    </label>
+    <label>Iterations
+      <input type="number" id="lbIterations" value="20" min="1" max="200">
+    </label>
+    <button id="btnLb">Lancer</button>
+  </div>
+  <div id="resLb" class="statut"></div>
+
+  <h2>Chaine complete BDD</h2>
+  <p class="aide">
+    Insere une valeur via <code>/post/data</code> puis la recherche via
+    <code>/post/search</code>. Valide APISIX, Node-RED et PostgreSQL.
+  </p>
+  <div class="controles">
+    <label>Valeur
+      <input type="text" id="dbValeur" placeholder="laisser vide = auto">
+    </label>
+    <button id="btnDb">Lancer</button>
+  </div>
+  <div id="resDb" class="statut"></div>
+
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>

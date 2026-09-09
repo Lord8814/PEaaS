@@ -1,0 +1,38 @@
+services:
+
+  node-red:
+
+    container_name: nodered1
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    hostname: nodered1
+    restart: unless-stopped
+    image: nodered/node-red:latest
+
+    environment:
+      - TZ=Europe/Paris
+
+    ports:
+      - "127.0.0.1:1880:1880"
+
+    volumes:
+      - /mnt/nodered1/data:/data
+      - /mnt/nodered1/config/settings.js:/data/settings.js:ro
+      - /mnt/nodered1/config/flows.json:/data/flows.json
+      - /mnt/nodered1/config/package.json:/data/package.json
+    networks:
+      - peaas
+
+networks:
+  peaas:
+    external: true

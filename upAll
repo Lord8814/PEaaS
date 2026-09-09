@@ -1,0 +1,9 @@
+#!/bin/bash
+DOSSIER=${1:-.}
+
+for fichier in $(find "$DOSSIER" -name "*compose.y*ml"); do
+    dossier=$(dirname "$fichier")
+    echo ">>> $dossier"
+    (cd "$dossier" && docker compose up -d)
+    sleep 15
+done
