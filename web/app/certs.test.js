@@ -99,3 +99,74 @@ test("permissions : clé privée CA en 0600", () => {
   const mode = fs.statSync(path.join(STORE, "federation-ca.key.pem")).mode & 0o777;
   assert.equal(mode, 0o600, `mode ${mode.toString(8)}`);
 });
+
+// ======================================================================
+//  SAN du certificat de site (D-013)
+// ======================================================================
+
+// SAN d'un certificat forge parsé : { dns: [...], ip: [...] }.
+function sanDe(certPem) {
+  const ext = forge.pki.certificateFromPem(certPem).getExtension("subjectAltName");
+  const dns = [];
+  const ip = [];
+  for (const n of (ext && ext.altNames) || []) {
+    if (n.type === 2) dns.push(n.value);
+    else if (n.type === 7) ip.push(n.ip || n.value);
+  }
+  return { dns: dns.sort(), ip: ip.sort() };
+}
+
+const serial = certPem => forge.pki.certificateFromPem(certPem).serialNumber;
+
+test("SAN : nom DNS du site + nom de nœud DMR + IP host_address", () => {
+  const { certPem } = issueSiteCert({
+    site: { id: "san-a", dmr_node_name: "noeud-a", index: 0, host_address: "10.5.6.7" }
+  });
+  const san = sanDe(certPem);
+  assert.deepEqual(san.dns, ["noeud-a", "san-a"]);
+  assert.deepEqual(san.ip, ["10.5.6.7"]);
+});
+
+test("SAN : réémission quand l'IP de la topologie change (nouveau sérial)", () => {
+  const a = issueSiteCert({
+    site: { id: "san-b", dmr_node_name: "san-b", index: 0, host_address: "10.0.0.1" }
+  });
+  assert.equal(a.reused, false);
+
+  // Rejeu à l'identique : réutilisé.
+  const memePlace = issueSiteCert({
+    site: { id: "san-b", dmr_node_name: "san-b", index: 0, host_address: "10.0.0.1" }
+  });
+  assert.equal(memePlace.reused, true);
+
+  // host_address différent -> SAN obsolètes -> réémission.
+  const b = issueSiteCert({
+    site: { id: "san-b", dmr_node_name: "san-b", index: 0, host_address: "10.0.0.2" }
+  });
+  assert.equal(b.reused, false);
+  assert.equal(b.reason, "SAN ne correspondant plus à la topologie");
+  assert.notEqual(serial(a.certPem), serial(b.certPem));
+  assert.deepEqual(sanDe(b.certPem).ip, ["10.0.0.2"]);
+});
+
+test("SAN : réémission quand le nom DNS du site change (nœud DMR stable)", () => {
+  // L'identité du magasin est le nom de nœud DMR : on le garde fixe et on
+  // fait varier l'id de site (autre SAN DNS).
+  const a = issueSiteCert({
+    site: { id: "san-c", dmr_node_name: "noeud-c", index: 0, host_address: "10.0.0.3" }
+  });
+  assert.equal(a.reused, false);
+  const b = issueSiteCert({
+    site: { id: "san-c-renomme", dmr_node_name: "noeud-c", index: 0, host_address: "10.0.0.3" }
+  });
+  assert.equal(b.reused, false);
+  assert.equal(b.reason, "SAN ne correspondant plus à la topologie");
+  assert.ok(sanDe(b.certPem).dns.includes("san-c-renomme"));
+});
+
+test("SAN : host_address absent -> pas d'entrée IP, réémission stable", () => {
+  const a = issueSiteCert({ site: { id: "san-d", dmr_node_name: "san-d", index: 0 } });
+  assert.deepEqual(sanDe(a.certPem).ip, []);
+  const b = issueSiteCert({ site: { id: "san-d", dmr_node_name: "san-d", index: 0 } });
+  assert.equal(b.reused, true);
+});

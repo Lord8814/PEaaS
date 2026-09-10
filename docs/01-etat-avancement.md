@@ -42,8 +42,10 @@ Prompt : `prompt-claude-code-lot-correctif.md`.
   setup rejouable ». **Suites de revue (à traiter dans leurs tâches) :**
   1. port du lien DMR : `8443` du profil vient d'une valeur de test distincte ;
      établir le port TLS réel et l'exposer sur toutes les interfaces → `docs/03` ;
-  3. le rejeu doit *supprimer* les `remoteAddresses` absentes du profil
-     (changement d'IP d'un pair) → tâche 3, avec test ;
+  3. ~~le rejeu doit *supprimer* les `remoteAddresses` absentes du profil~~
+     **fait (tâche 3)** : `solace-dmr.sh` réconcilie la liste connect-via de
+     chaque lien avec le profil (POST de l'adresse voulue + DELETE de toute
+     autre), vérifié contre un vrai broker (`PEAAS_SOLACE_IT=1`) ;
   4. `SOLACE_MAX_CONNECTIONS` du catalogue : plancher 1000 → tâche 4b ; relever
      l'empreinte mémoire du broker dans `docs/03`.
 - ~~Validation de topologie sans réseau commun (D-012)~~ **fait** (tâche 2) :
@@ -52,7 +54,12 @@ Prompt : `prompt-claude-code-lot-correctif.md`.
   (plage Docker ⊅ adresse d'un pair). **Point 2 inclus** : `dmr_cluster_name`
   au niveau `federation:` de `topology.yaml`, recopié dans `site-profile.yaml`,
   lu par `solace-dmr.sh` (fin de `SOLACE_DMR_CLUSTER`).
-- SAN DNS + IP (D-013)
+- ~~SAN DNS + IP (D-013)~~ **fait** (tâche 3) : SAN de site = nom DNS (id) +
+  `dmr_node_name` + IP `host_address` ; réémission ajoutée quand les SAN du
+  certificat en place ne correspondent plus au profil (en plus de < 30 j,
+  autre CA, `--force`). Aucune entrée `/etc/hosts` nulle part (rien à retirer,
+  le code n'en a jamais posé). Inclut la suite de revue n° 3 (réconciliation
+  des `remoteAddresses` DMR).
 - Archive construite depuis le dépôt seul, `data/` exclu (D-009) — dépend du branchement du catalogue
 - Configuration rejouée par composant (D-010)
 - Vérification de bout en bout des identifiants, interfaces d'admin locales (D-011, D-018)
@@ -64,10 +71,9 @@ Prompt : `prompt-claude-code-lot-correctif.md`.
 
 ## Prochaine action
 
-Tâche 3 du lot correctif : SAN des certificats de site (D-013) — SAN = nom DNS
-+ `dmr_node_name` + IP `host_address` ; réémission si les SAN ne correspondent
-plus à la topologie ; aucune entrée `/etc/hosts`. Y intégrer la suite de revue
-n° 3 (le rejeu DMR supprime les `remoteAddresses` absentes du profil).
+Tâche 4 du lot correctif : archive construite depuis le dépôt seul + catalogue
+branché (D-009). Étape a d'abord — inventaire `data/` par composant (descriptif
+vs produit), **avant toute suppression**, joint au rapport.
 
 ## Ouvert (voir documentation, section 14)
 

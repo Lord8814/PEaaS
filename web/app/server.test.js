@@ -208,6 +208,14 @@ test("intégration : génération multi-site de bout en bout", async t => {
     const site = forge.pki.certificateFromPem(siteCrt);
     assert.equal(ca.verify(site), true, "site.crt signé par la CA");
     assert.equal(site.subject.getField("CN").value, "site-a");
+
+    // SAN = nom DNS du site + nom de nœud DMR + IP host_address (D-013).
+    // Aucune entrée /etc/hosts : l'IP déclarée est dans le certificat.
+    const san = site.getExtension("subjectAltName").altNames;
+    const sanDns = san.filter(n => n.type === 2).map(n => n.value);
+    const sanIp = san.filter(n => n.type === 7).map(n => n.ip || n.value);
+    assert.ok(sanDns.includes("site-a"), `DNS SAN : ${sanDns}`);
+    assert.ok(sanIp.includes("10.10.0.10"), `IP SAN : ${sanIp}`); // host_address de TOPO_OK
   });
 
   await t.test("site-b et site-c : docker-compose.yaml identique à celui de site-a", async () => {

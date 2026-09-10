@@ -147,12 +147,58 @@ function ensureCa() {
 }
 
 // ----------------------------------------------------------------------
+//  SAN du certificat de site (D-013)
+// ----------------------------------------------------------------------
+//  Le certificat d'un site porte, en subjectAltName :
+//    - son nom DNS (son id de site) ;
+//    - son nom de nœud DMR (dmr_node_name) ;
+//    - son adresse IP déclarée (host_address), en type IP.
+//  Aucune entrée /etc/hosts n'est ajoutée nulle part : le nom résout par le
+//  DNS de chaque site, et l'IP est dans le certificat pour l'aiguillage
+//  direct par adresse.
+
+const IPV4_RE = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+
+function estIPv4(v) {
+  const m = IPV4_RE.exec(String(v).trim());
+  return !!m && m.slice(1).every(o => Number(o) <= 255);
+}
+
+// Ensemble des SAN VOULUS pour ce site, d'après le profil. Trié et
+// dédoublonné pour permettre une comparaison stable.
+function sansVoulus(site) {
+  const dns = [...new Set([site.id, site.dmr_node_name].filter(Boolean).map(String))].sort();
+  const host = String(site.host_address || "").trim();
+  const ip = estIPv4(host) ? [host] : [];
+  return { dns, ip };
+}
+
+// SAN effectivement présents dans un certificat forge déjà parsé.
+function sansDuCert(cert) {
+  const ext = cert.getExtension("subjectAltName");
+  const dns = [];
+  const ip = [];
+  if (ext && Array.isArray(ext.altNames)) {
+    for (const n of ext.altNames) {
+      if (n.type === 2 && n.value) dns.push(n.value);
+      else if (n.type === 7 && (n.ip || n.value)) ip.push(n.ip || n.value);
+    }
+  }
+  return { dns: [...new Set(dns)].sort(), ip: [...new Set(ip)].sort() };
+}
+
+function sansIdentiques(a, b) {
+  const eq = (x, y) => x.length === y.length && x.every((v, i) => v === y[i]);
+  return eq(a.dns, b.dns) && eq(a.ip, b.ip);
+}
+
+// ----------------------------------------------------------------------
 //  Certificat de site
 // ----------------------------------------------------------------------
 
 // Détermine s'il faut (ré)émettre le certificat du site. Renvoie la raison
 // (string) ou null si le certificat en place est réutilisable tel quel.
-function raisonReemission(id, ca, force) {
+function raisonReemission(site, id, ca, force) {
   const p = paths();
   if (force) return "flag de régénération explicite";
   if (!fs.existsSync(p.siteKey(id)) || !fs.existsSync(p.siteCrt(id))) {
@@ -173,6 +219,9 @@ function raisonReemission(id, ca, force) {
   } catch {
     return "certificat signé par une autre CA";
   }
+  if (!sansIdentiques(sansVoulus(site), sansDuCert(cert))) {
+    return "SAN ne correspondant plus à la topologie";
+  }
   return null;
 }
 
@@ -180,9 +229,10 @@ function raisonReemission(id, ca, force) {
 // sérialisé dans site-profile.yaml). Identité = dmr_node_name, à défaut id.
 //
 // RÉÉMISSION uniquement si : certificat absent, illisible, expiré/proche de
-// l'expiration, signé par une autre CA, ou options.force === true.
-// Sinon on renvoie le certificat existant à l'octet près — régénérer à
-// chaque run invaliderait un certificat déjà déployé en production.
+// l'expiration, signé par une autre CA, SAN ne correspondant plus à la
+// topologie (D-013), ou options.force === true. Sinon on renvoie le
+// certificat existant à l'octet près — régénérer à chaque run invaliderait
+// un certificat déjà déployé en production.
 //
 // Retour : { keyPem, certPem, caCertPem, reused:boolean, reason:string|null }
 function issueSiteCert(profile, options = {}) {
@@ -198,7 +248,7 @@ function issueSiteCert(profile, options = {}) {
   }
 
   const p = paths();
-  const raison = raisonReemission(id, ca, force);
+  const raison = raisonReemission(site, id, ca, force);
 
   if (!raison) {
     return {
@@ -219,13 +269,18 @@ function issueSiteCert(profile, options = {}) {
   cert.setSubject([{ name: "commonName", value: id }]);
   cert.setIssuer(ca.cert.subject.attributes);
 
-  const noms = [...new Set([id, site.id, site.dmr_node_name].filter(Boolean))];
+  // SAN = nom DNS du site + nom de nœud DMR + IP host_address (D-013).
+  const sans = sansVoulus(site);
+  const altNames = [
+    ...sans.dns.map(v => ({ type: 2, value: v })), // 2 = DNS
+    ...sans.ip.map(v => ({ type: 7, ip: v })) //      7 = IP
+  ];
   cert.setExtensions([
     { name: "basicConstraints", cA: false, critical: true },
     { name: "keyUsage", digitalSignature: true, keyEncipherment: true, critical: true },
     // mTLS : le certificat sert des deux côtés du lien.
     { name: "extKeyUsage", serverAuth: true, clientAuth: true },
-    { name: "subjectAltName", altNames: noms.map(v => ({ type: 2, value: v })) }, // 2 = DNS
+    { name: "subjectAltName", altNames },
     { name: "subjectKeyIdentifier" }
   ]);
   cert.sign(ca.key, forge.md.sha256.create());
@@ -243,6 +298,8 @@ module.exports = {
   ensureCa,
   issueSiteCert,
   raisonReemission,
+  sansVoulus,
+  sansDuCert,
   caPaths: paths,
   CONST: { CA_CN, CA_VALIDITY_DAYS, SITE_VALIDITY_DAYS, SITE_RENEW_WITHIN_DAYS }
 };

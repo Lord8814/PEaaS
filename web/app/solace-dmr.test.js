@@ -154,6 +154,8 @@ test("unit/dry-run : site d'index bas -> initie vers chaque pair (initiator=loca
     // remoteAddresses : POST sur la collection, adresse dans le corps.
     assert.match(out, new RegExp(`POST /SEMP/v2/config/dmrClusters/peaas/links/${node}/remoteAddresses`));
     assert.match(out, new RegExp(`"remoteAddress":"${addr.replace(/\./g, "\\.")}"`));
+    // le lien est réconcilié sur l'adresse voulue (retrait de toute autre).
+    assert.match(out, new RegExp(`reconcilie ${node} : garder ${addr.replace(/\./g, "\\.")}, retirer`));
   }
 });
 
@@ -161,7 +163,10 @@ test("unit/dry-run : site d'index haut -> n'initie pas (initiator=remote, aucune
   const out = dryRun(bac(PROFIL_C));
   assert.match(out, /links\/site-a\n\s+\{[^\n]*"initiator":"remote"/);
   assert.match(out, /links\/site-b\n\s+\{[^\n]*"initiator":"remote"/);
-  assert.doesNotMatch(out, /remoteAddresses/);
+  assert.doesNotMatch(out, /remoteAddresses/); // aucune adresse POSTée
+  // mais le lien est quand même réconcilié : toute adresse résiduelle est retirée.
+  assert.match(out, /reconcilie site-a : retirer toutes les adresses distantes/);
+  assert.match(out, /reconcilie site-b : retirer toutes les adresses distantes/);
 });
 
 test("unit/dry-run : idempotent (relance -> sortie identique)", () => {
@@ -331,6 +336,20 @@ test(
 
       // --- Idempotence réelle : rejeu complet, toujours code 0 -------------
       runScript(dirA, "peaas"); // ne doit pas lever
+
+      // --- Changement d'IP d'un pair : le rejeu doit RETIRER l'ancienne
+      //     adresse distante, pas seulement ajouter la nouvelle (suite de
+      //     revue n° 3). site-b passe de 10.124.40.11 à 10.99.88.77.
+      const dirA2 = bacReel(PROFIL_A.replace("10.124.40.11", "10.99.88.77"));
+      runScript(dirA2, "peaas");
+      const addrsB2 = sempGet(
+        "/SEMP/v2/config/dmrClusters/peaas/links/site-b/remoteAddresses"
+      ).data;
+      assert.deepEqual(
+        addrsB2.map(a => a.remoteAddress),
+        ["10.99.88.77:8443"],
+        "ancienne adresse distante non supprimée au rejeu"
+      );
 
       // --- Vue "site C" (index haut) : mêmes pairs, rôle 'remote', aucune
       //     adresse distante. L'édition standard n'autorise qu'UN dmrCluster

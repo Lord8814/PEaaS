@@ -90,9 +90,15 @@ Fichier vivant. Toutes les valeurs concrètes du montage.
 | Élément | Emplacement | Généré par | SAN | Expiration |
 |---|---|---|---|---|
 | Autorité de la fédération | `PEAAS_CA_DIR` (hors dépôt, 0600/0700) | Générateur | — | |
-| Certificat site A | archive A, `certs/` | Générateur | DNS + nœud DMR + IP | |
-| Certificat site B | archive B, `certs/` | Générateur | DNS + nœud DMR + IP | |
-| Certificat site C | archive C, `certs/` | Générateur | DNS + nœud DMR + IP | |
+| Certificat site A | archive A, `certs/` | Générateur | DNS (id) + DNS (nœud DMR) + IP (`host_address`) | |
+| Certificat site B | archive B, `certs/` | Générateur | DNS (id) + DNS (nœud DMR) + IP (`host_address`) | |
+| Certificat site C | archive C, `certs/` | Générateur | DNS (id) + DNS (nœud DMR) + IP (`host_address`) | |
+
+> Réémission (D-013) : certificat absent / illisible / à moins de 30 j / signé
+> par une autre CA / **SAN ne correspondant plus au profil** (changement d'IP
+> ou de nom dans `topology.yaml`) / `--force`. Sinon le certificat en place est
+> réutilisé tel quel. Aucune entrée `/etc/hosts` : le nom résout par le DNS de
+> chaque site, l'IP est dans le SAN pour l'aiguillage par adresse.
 
 ## Identifiants
 

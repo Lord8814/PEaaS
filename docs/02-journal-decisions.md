@@ -79,9 +79,14 @@ Reste non vérifié : lien à l'état *actif* en mTLS (exige deux brokers).
 de `topology.yaml`, recopié tel quel dans chaque `site-profile.yaml`, lu par
 `solace-dmr.sh` (fin de la variable d'environnement `SOLACE_DMR_CLUSTER` et de
 toute valeur par défaut câblée dans le script). La cohérence du nom entre sites
-est ainsi garantie par construction. **À traiter en tâche 3** : le rejeu doit
-*supprimer* les `remoteAddresses` d'un lien qui ne figurent plus dans le profil
-(cas du changement d'IP d'un pair), au lieu de seulement ignorer `ALREADY_EXISTS`.
+est ainsi garantie par construction.
+**Amendé (tâche 3).** Le rejeu **réconcilie** la liste connect-via
+(`remoteAddresses`) de chaque lien avec le profil : POST de l'adresse voulue
+(rejeu → `ALREADY_EXISTS`, ok) **et** DELETE de toute autre adresse encore
+présente (pair qui a changé d'IP, ou ancien rôle). Fait lien désactivé (le
+broker refuse cette modification sur un lien actif). Vérifié contre un vrai
+broker : `solace-dmr.test.js` sous `PEAAS_SOLACE_IT=1` rejoue avec un pair
+d'IP modifiée et relit la liste.
 
 ---
 
@@ -130,7 +135,11 @@ Aucune règle ne compare le réseau d'un site à celui d'un autre. `site-profile
 **Date.** 10/09/2026
 **Décision.** Le certificat d'un site porte son nom DNS, son nom de nœud DMR et son adresse IP déclarée. Il est réémis si ses SAN ne correspondent plus à la topologie.
 **Raison.** Le DNS seul pousse à ajouter des entrées `hosts` locales ; l'IP seule interdit l'aiguillage par SNI envisagé en 8.5.
-**Statut.** Retenu.
+**Statut.** Retenu, **implémenté (tâche 3, 10/09)** dans `web/app/certs.js` (`certs.test.js`).
+- `subjectAltName` = `{DNS: id de site, DNS: dmr_node_name, IP: host_address}`, trié/dédoublonné. `host_address` absent ou non IPv4 → pas d'entrée IP (les tests hors topologie restent stables).
+- Conditions de réémission : certificat absent / illisible / à moins de 30 j / signé par une autre CA / **SAN différents de ceux voulus par le profil** / `--force`. Sinon le certificat en place est renvoyé à l'octet près.
+- Un changement d'IP (ou de nom) dans `topology.yaml` produit donc un nouveau certificat (sérial neuf) au prochain `/api/package`.
+- Aucune entrée `/etc/hosts` / `extra_hosts` / `--add-host` nulle part : le code n'en a jamais posé, rien à retirer.
 
 ---
 
