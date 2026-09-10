@@ -54,3 +54,25 @@ La mesure commence sur une machine conforme au contrat de machine hôte (D-019).
 ## Observations
 
 *(ce qui a pris plus de temps que prévu, et pourquoi — c'est souvent le plus instructif)*
+
+### 10/09 — audit d'historique du dépôt (secrets, tâche 4)
+
+Recherche de `credentialSecret`, `adminAuth`, `admin_key` et de leurs valeurs
+littérales dans tout l'historique (`git log --all -S`, `git rev-list --all | git grep`).
+
+- **`PEaaSrepo/` : aucune occurrence, jamais** (5 commits, une branche). Les
+  anciens `catalogue/*.yaml` ne faisaient que *référencer* des chemins de
+  gabarits jamais ajoutés. Aucun matériel secret n'est entré dans le dépôt du
+  socle — rien à assainir, pas de réécriture d'historique.
+- Les valeurs sont dans l'historique du **dépôt local `/mnt`** (workspace non
+  versionné au sens du projet), commit `e108de7`, `apisix/config/config.yaml`
+  et `nodered1/config/settings.js` :
+  - `admin_key: edd1c9f034335f136f87ad84b625c8f1` = **la clé admin par défaut
+    documentée par APISIX** (config d'exemple, chart Helm). Valeur publique →
+    exposition sans enjeu, illustration exacte de D-011.
+  - `credentialSecret` et le hash bcrypt `adminAuth` de `settings.js` = valeurs
+    réelles générées localement par Node-RED, uniquement dans l'historique `/mnt`.
+- Le dépôt `/mnt` porte un `origin` `github.com/Lord8814/PEaaSrepo.git` mais
+  aucune réf de suivi distante → rien n'indique un push ; URL probablement
+  erronée (le sous-module `PEaaSrepo/` n'a, lui, aucun remote). Reco : retirer
+  cet `origin`, ne rien y pousser.

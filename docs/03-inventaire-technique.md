@@ -69,6 +69,29 @@ Fichier vivant. Toutes les valeurs concrètes du montage.
 > (schéma `peaas` + table marqueur), `solace-dmr.sh` (liens DMR). Rejouable,
 > non bloquant. Aucun contenu métier (D-010).
 
+## Inventaire `data/` (tâche 4a — avant branchement du catalogue)
+
+**descriptif** → gabarit dans `PEaaSrepo/catalogue/<nom>/` ; **produit** → état
+d'exécution, jamais lu ni archivé (D-009) ; **cas d'usage** → signalé, hors socle.
+
+| Composant | Élément | Classe | Traitement |
+|---|---|---|---|
+| apisix | `config/config.yaml` | descriptif | gabarit ; `admin_key` → `${APISIX_ADMIN_KEY}` (la clé en dur était la clé par défaut documentée par APISIX) |
+| apisix | routes/upstreams dans etcd | cas d'usage | hors socle ; route de santé neutre via `apisix.sh` |
+| etcd | `data/member/{snap,wal}` (62 Mo) | produit | jamais archivé |
+| solace | `data/config/**`, `data/{spool,spool-cache*,diagnostics,jail,var}` (~850 Mo) | produit | jamais archivé ; config DMR rejouée par `solace-dmr.sh` |
+| nodered1 | `config/settings.js` | descriptif | gabarit **neutre réécrit** (contenait `credentialSecret` + hash `adminAuth`) |
+| nodered1 | `config/flows.json` (GetNameData, PostDB, EnvoieMQTT, SearchDB+MQTT) | **cas d'usage** | hors socle ; gabarit = `[]` |
+| nodered1 | `config/package.json` (contrib postgresql/loop) | descriptif orienté cas d'usage | gabarit socle `dependencies: {}` |
+| nodered1 | `data/{.config.*,flows_cred.json,node_modules,.npm}` (4,2 Mo) ; `nodered1/nodered1/` parasite | produit / à retirer | jamais archivé |
+| postgres | `data/` (vide) | produit | jamais archivé ; schéma neutre via `postgres.sh` |
+| pgadmin | `data/{pgadmin4.db,sessions,storage}` (248 Ko) | produit | jamais archivé |
+| prometheus | `conf/prometheus.yml` | descriptif neutre | gabarit |
+| prometheus | `data/{TSDB,wal}` (2,7 Mo) | produit | jamais archivé |
+| grafana | `data/{grafana.db,plugins,…}` (52 Mo) ; `config/` vide | produit | jamais archivé |
+
+Aucune suppression de `*/data/` : le générateur cesse simplement de les lire.
+
 ## Ports
 
 | Flux | Port interne | Port exposé | Liaison | Sens d'ouverture |

@@ -10,9 +10,11 @@ où en est le chantier sans qu'on ait à le réexpliquer.
 
 ## Phase en cours
 
-> Phase 1 — Générateur. Largement implémentée, **non close** : le critère de
-> sortie (« un package généré s'installe seul ») n'est pas vérifié sur VM vierge,
-> et le catalogue YAML n'est pas branché.
+> Phase 1 — Générateur. Catalogue branché (tâche 4), config par composant
+> rejouée (tâche 5). **Non close** : identifiants encore en dur (tâche 6),
+> contrôles du contrat de machine + traçabilité `install.sh` (tâche 7),
+> critère de sortie (« un package généré s'installe seul ») non vérifié sur
+> machine vierge.
 
 ## Fait
 
