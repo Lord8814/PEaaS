@@ -15,16 +15,19 @@ const {
   ErreurTopologie
 } = require("./multisite");
 
-// Topologie de référence : 3 sites, maillage complet, adresses dans le LAN PoC.
+// Topologie de référence : 3 sites, maillage complet. Chaque site déclare
+// son propre réseau hôte (D-012) ; ici ils partagent le même, ce qui reste
+// valide — le générateur ne l'impose ni ne l'interdit.
 function topoRef() {
   return {
-    lan: { expected_cidr: "10.124.40.0/23" },
+    federation: { dmr_cluster_name: "peaas" },
     index_history: { 0: "site-a", 1: "site-b", 2: "site-c" },
     sites: [
       {
         id: "site-a",
         index: 0,
         host_address: "10.124.40.10",
+        host_cidr: "10.124.40.0/23",
         host_port: 443,
         role: { dmr_node_name: "site-a", dmr_link_initiator: "lowest_index" }
       },
@@ -32,6 +35,7 @@ function topoRef() {
         id: "site-b",
         index: 1,
         host_address: "10.124.40.11",
+        host_cidr: "10.124.40.0/23",
         host_port: 443,
         role: { dmr_node_name: "site-b", dmr_link_initiator: "lowest_index" }
       },
@@ -39,6 +43,7 @@ function topoRef() {
         id: "site-c",
         index: 2,
         host_address: "10.124.40.12",
+        host_cidr: "10.124.40.0/23",
         host_port: 443,
         role: { dmr_node_name: "site-c", dmr_link_initiator: "lowest_index" }
       }
@@ -96,7 +101,7 @@ test("validateTopology : rejette la réattribution d'un index retiré", () => {
   // site-b a été supprimé : il ne figure plus dans `sites`, mais l'index 1
   // reste réservé à 'site-b' dans l'historique. Un nouveau site-d le réclame.
   const doc = {
-    lan: { expected_cidr: "10.124.40.0/23" },
+    federation: { dmr_cluster_name: "peaas" },
     index_history: { 0: "site-a", 1: "site-b", 2: "site-c", 3: "site-d" },
     sites: [
       topoRef().sites[0],
@@ -105,6 +110,7 @@ test("validateTopology : rejette la réattribution d'un index retiré", () => {
         id: "site-e",
         index: 3, // 3 est déjà réservé à 'site-d' dans l'historique
         host_address: "10.124.40.20",
+        host_cidr: "10.124.40.0/23",
         host_port: 443,
         role: { dmr_node_name: "site-e", dmr_link_initiator: "lowest_index" }
       }
@@ -126,6 +132,7 @@ test("validateTopology : rejette un index absent de l'historique", () => {
     id: "site-d",
     index: 3, // jamais enregistré dans index_history
     host_address: "10.124.40.13",
+    host_cidr: "10.124.40.0/23",
     host_port: 443,
     role: { dmr_node_name: "site-d", dmr_link_initiator: "lowest_index" }
   });
@@ -142,49 +149,112 @@ test("validateTopology : accepte l'ajout d'un site avec index frais historisé",
     id: "site-d",
     index: 3,
     host_address: "10.124.40.13",
+    host_cidr: "10.124.40.0/23",
     host_port: 443,
     role: { dmr_node_name: "site-d", dmr_link_initiator: "lowest_index" }
   });
-  const topo = validateTopology(doc, {});
+  const topo = validateTopology(doc);
   assert.equal(topo.sites.length, 4);
   assert.equal(topo.nextIndex, 4);
 });
 
 // ======================================================================
-//  4. Chevauchement plage Docker calculée / plage LAN déclarée
+//  4. Adressage sans réseau commun (D-012) : host_cidr par site
 // ======================================================================
 
-test("validateTopology : détecte un LAN qui chevauche le bloc Docker 10.90.0.0/16", () => {
+test("validateTopology : trois sites dans trois réseaux hôtes différents -> valide", () => {
   const doc = topoRef();
-  // LAN volontairement placé dans le bloc Docker réservé.
-  doc.sites.forEach((s, i) => (s.host_address = `10.90.0.${10 + i}`));
+  doc.sites[0].host_address = "10.10.0.10";
+  doc.sites[0].host_cidr = "10.10.0.0/24";
+  doc.sites[1].host_address = "172.20.5.11";
+  doc.sites[1].host_cidr = "172.20.5.0/24";
+  doc.sites[2].host_address = "192.168.30.12";
+  doc.sites[2].host_cidr = "192.168.30.0/24";
+  const topo = validateTopology(doc);
+  assert.equal(topo.sites.length, 3);
+  assert.deepEqual(
+    topo.sites.map(s => s.host_cidr),
+    ["10.10.0.0/24", "172.20.5.0/24", "192.168.30.0/24"]
+  );
+});
+
+test("validateTopology : rejette un host_address hors de son propre host_cidr", () => {
+  const doc = topoRef();
+  doc.sites[1].host_address = "192.0.2.50"; // hors de son host_cidr 10.124.40.0/23
   assert.throws(
-    () => validateTopology(doc, { lanCidr: "10.90.0.0/24" }),
+    () => validateTopology(doc),
+    /host_address du site 'site-b' \(192\.0\.2\.50\) n'est pas dans son réseau hôte host_cidr/
+  );
+});
+
+test("validateTopology : rejette un host_cidr absent ou illisible", () => {
+  const doc = topoRef();
+  delete doc.sites[2].host_cidr;
+  assert.throws(() => validateTopology(doc), /host_cidr : CIDR IPv4 attendu/);
+});
+
+test("validateTopology : rejette un host_cidr qui chevauche le bloc Docker 10.90.0.0/16", () => {
+  const doc = topoRef();
+  doc.sites[0].host_cidr = "10.90.0.0/24";
+  doc.sites[0].host_address = "10.90.0.10";
+  assert.throws(
+    () => validateTopology(doc),
+    /host_cidr du site 'site-a' \(10\.90\.0\.0\/24\) chevauche le bloc Docker réservé 10\.90\.0\.0\/16/
+  );
+});
+
+test("validateTopology : rejette une plage Docker de site qui chevauche son host_cidr", () => {
+  const doc = topoRef();
+  // Site d'index 1 -> Docker 10.90.1.0/24 ; on place son host_cidr dessus.
+  doc.sites[1].host_cidr = "10.90.1.0/24";
+  doc.sites[1].host_address = "10.90.1.11";
+  assert.throws(
+    () => validateTopology(doc),
+    /la plage Docker du site 'site-b' \(10\.90\.1\.0\/24[^)]*\) chevauche son réseau hôte host_cidr/
+  );
+});
+
+test("validateTopology : rejette une plage Docker qui contient l'host_address d'un pair", () => {
+  const doc = topoRef();
+  // site-a a l'index 0 -> Docker 10.90.0.0/24. On met site-b dans ce /24.
+  doc.sites[1].host_address = "10.90.0.11";
+  doc.sites[1].host_cidr = "10.90.0.0/24";
+  assert.throws(
+    () => validateTopology(doc),
     err => {
       assert.ok(err instanceof ErreurTopologie);
-      assert.match(err.message, /chevauche le bloc Docker réservé 10\.90\.0\.0\/16/);
+      assert.match(
+        err.message,
+        /la plage Docker du site 'site-a' \(10\.90\.0\.0\/24\) contient l'host_address du site 'site-b' \(10\.90\.0\.11\)/
+      );
       return true;
     }
   );
 });
 
-test("validateTopology : rejette un host_address hors de la plage LAN", () => {
+// ======================================================================
+//  4bis. Nom du cluster DMR : propriété de la fédération (point 2)
+// ======================================================================
+
+test("validateTopology : dmr_cluster_name repris dans la topologie normalisée", () => {
   const doc = topoRef();
-  doc.sites[1].host_address = "192.0.2.50"; // hors 10.124.40.0/23
-  assert.throws(
-    () => validateTopology(doc, {}),
-    /host_address du site 'site-b' \(192\.0\.2\.50\) est hors de la plage LAN attendue/
-  );
+  doc.federation.dmr_cluster_name = "federation-nord";
+  assert.equal(validateTopology(doc).dmrClusterName, "federation-nord");
 });
 
-test("validateTopology : la plage LAN est configurable (option lanCidr)", () => {
+test("validateTopology : federation absente -> cluster DMR 'peaas' par défaut", () => {
   const doc = topoRef();
-  doc.sites.forEach((s, i) => (s.host_address = `172.16.5.${10 + i}`));
-  // Échoue avec le LAN du fichier...
-  assert.throws(() => validateTopology(doc, {}), ErreurTopologie);
-  // ...mais passe si on fournit le bon LAN en configuration.
-  const topo = validateTopology(doc, { lanCidr: "172.16.0.0/16" });
-  assert.equal(topo.lanCidr, "172.16.0.0/16");
+  delete doc.federation;
+  assert.equal(validateTopology(doc).dmrClusterName, "peaas");
+});
+
+test("validateTopology : rejette un dmr_cluster_name invalide", () => {
+  const doc = topoRef();
+  doc.federation.dmr_cluster_name = "pas valide!";
+  assert.throws(
+    () => validateTopology(doc),
+    /federation\.dmr_cluster_name : nom de cluster DMR invalide/
+  );
 });
 
 // ======================================================================
@@ -235,9 +305,23 @@ test("siteProfile : site cible inconnu -> ErreurTopologie", () => {
   assert.throws(() => siteProfile(topoRef(), "site-z", {}), ErreurTopologie);
 });
 
+test("siteProfile : recopie dmr_cluster_name et host_cidr, plus de lan_cidr", () => {
+  const doc = topoRef();
+  doc.federation.dmr_cluster_name = "federation-nord";
+  doc.sites[0].host_address = "10.10.0.10";
+  doc.sites[0].host_cidr = "10.10.0.0/24";
+  const prof = siteProfile(doc, "site-a");
+  assert.equal(prof.dmr_cluster_name, "federation-nord");
+  assert.equal(prof.site.host_cidr, "10.10.0.0/24");
+  assert.ok(!("lan_cidr" in prof), "plus de lan_cidr dans le profil");
+});
+
 test("renderSiteProfileYaml : contient l'identité et tous les pairs", () => {
-  const yaml = renderSiteProfileYaml(siteProfile(topoRef(), "site-a", {}));
+  const yaml = renderSiteProfileYaml(siteProfile(topoRef(), "site-a"));
   assert.match(yaml, /docker_subnet: "10\.90\.0\.0\/24"/);
+  assert.match(yaml, /^  host_cidr: "10\.124\.40\.0\/23"$/m);
+  assert.match(yaml, /^dmr_cluster_name: "peaas"$/m);
+  assert.doesNotMatch(yaml, /lan_cidr/);
   assert.match(yaml, /id: "site-b"/);
   assert.match(yaml, /id: "site-c"/);
   assert.doesNotMatch(yaml, /- id: "site-a"/); // pas de self dans les pairs

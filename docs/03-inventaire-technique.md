@@ -16,12 +16,14 @@ Fichier vivant. Toutes les valeurs concrètes du montage.
 | B | | | | `10.90.<index>.0/24` | |
 | C | | | | `10.90.<index>.0/24` | |
 
-> Les valeurs `10.124.40.10/11/12` présentes dans `topology.yaml` sont des
-> exemples, pas les adresses réelles.
+> Les `host_address` / `host_cidr` de `topology.yaml` (`10.10.0.0/24`,
+> `172.20.5.0/24`, `192.168.30.0/24` — trois réseaux volontairement sans
+> rapport) sont des **exemples**, pas les adresses réelles. Ils illustrent
+> que la topologie ne décrit aucun réseau commun (D-012).
 >
-> Règles : aucune plage Docker commune entre sites ; aucune plage Docker
-> recouvrant l'adresse d'un pair ; aucun nom ni adresse résoluble seulement
-> depuis le réseau du PoC.
+> Règles : aucune plage Docker recouvrant son propre `host_cidr` ; aucune
+> plage Docker recouvrant l'`host_address` d'un pair ; aucun nom ni adresse
+> résoluble seulement depuis le réseau du PoC.
 
 ## Machines
 

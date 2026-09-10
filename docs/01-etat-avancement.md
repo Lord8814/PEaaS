@@ -38,7 +38,20 @@ Prompt : `prompt-claude-code-lot-correctif.md`.
   rôles `local`/`remote` conformes à `dmr-initiator.sh`, `transportTlsEnabled:true`
   ajouté au lien pour l'auth par certificat client. Non vérifié : lien à l'état
   *actif* en mTLS (exige deux brokers ; ressources insuffisantes).
-- Validation de topologie sans réseau commun (D-012)
+  Livrable versionné : commit `PEaaSrepo` « Fédération DMR Solace : script de
+  setup rejouable ». **Suites de revue (à traiter dans leurs tâches) :**
+  1. port du lien DMR : `8443` du profil vient d'une valeur de test distincte ;
+     établir le port TLS réel et l'exposer sur toutes les interfaces → `docs/03` ;
+  3. le rejeu doit *supprimer* les `remoteAddresses` absentes du profil
+     (changement d'IP d'un pair) → tâche 3, avec test ;
+  4. `SOLACE_MAX_CONNECTIONS` du catalogue : plancher 1000 → tâche 4b ; relever
+     l'empreinte mémoire du broker dans `docs/03`.
+- ~~Validation de topologie sans réseau commun (D-012)~~ **fait** (tâche 2) :
+  `lan.expected_cidr` / `HOST_LAN_CIDR` supprimés ; `host_cidr` par site ;
+  validation d'adressage entièrement locale au site + garde inter-sites
+  (plage Docker ⊅ adresse d'un pair). **Point 2 inclus** : `dmr_cluster_name`
+  au niveau `federation:` de `topology.yaml`, recopié dans `site-profile.yaml`,
+  lu par `solace-dmr.sh` (fin de `SOLACE_DMR_CLUSTER`).
 - SAN DNS + IP (D-013)
 - Archive construite depuis le dépôt seul, `data/` exclu (D-009) — dépend du branchement du catalogue
 - Configuration rejouée par composant (D-010)
@@ -51,9 +64,10 @@ Prompt : `prompt-claude-code-lot-correctif.md`.
 
 ## Prochaine action
 
-Tâche 2 du lot correctif : topologie sans réseau commun (D-012) — supprimer
-`lan.expected_cidr` / `HOST_LAN_CIDR`, ajouter `host_cidr` par site, revoir la
-validation d'adressage.
+Tâche 3 du lot correctif : SAN des certificats de site (D-013) — SAN = nom DNS
++ `dmr_node_name` + IP `host_address` ; réémission si les SAN ne correspondent
+plus à la topologie ; aucune entrée `/etc/hosts`. Y intégrer la suite de revue
+n° 3 (le rejeu DMR supprime les `remoteAddresses` absentes du profil).
 
 ## Ouvert (voir documentation, section 14)
 

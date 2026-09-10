@@ -47,10 +47,11 @@ const PROFIL_A = `site:
   index: 0
   docker_subnet: "10.90.0.0/24"
   host_address: "10.124.40.10"
+  host_cidr: "10.124.40.0/23"
   host_port: 443
   dmr_node_name: "site-a"
   dmr_link_initiator: "lowest_index"
-lan_cidr: "10.124.40.0/23"
+dmr_cluster_name: "peaas"
 docker_block: "10.90.0.0/16"
 peers:
   - id: "site-b"
@@ -75,10 +76,11 @@ const PROFIL_C = `site:
   index: 2
   docker_subnet: "10.90.2.0/24"
   host_address: "10.124.40.12"
+  host_cidr: "10.124.40.0/23"
   host_port: 443
   dmr_node_name: "site-c"
   dmr_link_initiator: "lowest_index"
-lan_cidr: "10.124.40.0/23"
+dmr_cluster_name: "peaas"
 docker_block: "10.90.0.0/16"
 peers:
   - id: "site-a"
@@ -187,6 +189,34 @@ test("unit : profil sans pair -> sortie propre, code 0", () => {
     encoding: "utf8"
   });
   assert.match(out, /sans pair/);
+});
+
+// -- Nom du cluster DMR : propriété de la fédération, lue dans le profil -----
+
+test("unit/dry-run : le nom du cluster vient du profil (dmr_cluster_name), sans --cluster", () => {
+  const dir = bac(PROFIL_A.replace('"peaas"', '"federation-nord"'));
+  const out = dryRun(dir); // dryRun ne passe PAS --cluster
+  assert.match(out, /PUT \/SEMP\/v2\/config\/dmrClusters\/federation-nord\b/);
+  assert.match(out, /"dmrClusterName":"federation-nord"/);
+  assert.doesNotMatch(out, /dmrClusters\/peaas\b/);
+});
+
+test("unit/dry-run : --cluster surcharge le champ du profil", () => {
+  const out = dryRun(bac(PROFIL_A), ["--cluster", "explicite"]);
+  assert.match(out, /dmrClusters\/explicite\b/);
+  assert.doesNotMatch(out, /dmrClusters\/peaas\b/);
+});
+
+test("unit : profil AVEC pairs mais SANS dmr_cluster_name ni --cluster -> échec explicite", () => {
+  const dir = bac(PROFIL_A.replace('dmr_cluster_name: "peaas"\n', ""));
+  assert.throws(
+    () => dryRun(dir),
+    err => {
+      assert.equal(err.status, 1);
+      assert.match(String(err.stderr), /cluster DMR introuvable/);
+      return true;
+    }
+  );
 });
 
 // =============================================================================

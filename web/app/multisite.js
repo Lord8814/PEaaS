@@ -7,10 +7,10 @@
 //  générateur. Testable seul avec `node --test multisite.test.js`.
 //
 //  Il expose :
-//    - dockerSubnet(index)                 -> "10.90.<index>.0/24"
-//    - validateTopology(doc, { lanCidr })  -> topologie normalisée | throw
-//    - siteProfile(doc, siteId, opts)      -> profil de site | throw
-//    - renderSiteProfileYaml(profile)      -> texte YAML du profil
+//    - dockerSubnet(index)              -> "10.90.<index>.0/24"
+//    - validateTopology(doc)            -> topologie normalisée | throw
+//    - siteProfile(doc, siteId)         -> profil de site | throw
+//    - renderSiteProfileYaml(profile)   -> texte YAML du profil
 //  plus quelques helpers d'adressage (ipToInt, parseCidr, ...).
 // ======================================================================
 
@@ -18,12 +18,16 @@
 // Chaque site en occupe un /24, indexé par son `index`.
 const DOCKER_BLOCK = "10.90.0.0/16";
 
-// Plage LAN des VM hôtes, valeur par défaut du PoC. N'EST PAS codée en dur
-// dans la logique : surchargée par l'option lanCidr (elle-même alimentée
-// par la variable d'env HOST_LAN_CIDR ou par lan.expected_cidr du fichier).
-const DEFAULT_LAN_CIDR = "10.124.40.0/23";
+// Nom du cluster DMR par défaut si la fédération n'en déclare pas. C'est une
+// propriété de la FÉDÉRATION (topology.yaml -> federation.dmr_cluster_name),
+// jamais d'un site : un seul nom, recopié tel quel dans chaque
+// site-profile.yaml et lu par solace-dmr.sh.
+const DEFAULT_DMR_CLUSTER = "peaas";
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+// Nom d'objet DMR accepté par Solace (dmrClusterName) : alphanumérique,
+// tiret et souligné, 1 à 64 caractères, ne commence pas par un séparateur.
+const DMR_CLUSTER_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const INITIATOR_POLICIES = ["lowest_index", "highest_index"];
 
 // Erreur de topologie : porte la liste complète des problèmes détectés
@@ -104,23 +108,36 @@ function cidrsOverlap(a, b) {
 // ----------------------------------------------------------------------
 
 // Valide `doc` (objet issu du YAML) et renvoie une topologie normalisée :
-//   { lanCidr, dockerBlock, indexHistory: Map, nextIndex, sites: [...] }
+//   { dmrClusterName, dockerBlock, indexHistory: Map, nextIndex, sites: [...] }
 // Lève ErreurTopologie (liste des problèmes) au moindre défaut.
-function validateTopology(doc, options = {}) {
+//
+// La topologie ne décrit AUCUN réseau commun entre sites (D-012) : chaque
+// site déclare son propre `host_cidr` (réseau de sa VM hôte). La validation
+// d'adressage est donc entièrement locale à un site, plus une garde
+// inter-sites (une plage Docker ne doit pas contenir l'adresse d'un pair).
+function validateTopology(doc) {
   const problemes = [];
-  const lanCidr =
-    options.lanCidr || (doc && doc.lan && doc.lan.expected_cidr) || DEFAULT_LAN_CIDR;
 
-  if (!parseCidr(lanCidr)) {
-    throw new ErreurTopologie(
-      `plage LAN attendue illisible : ${JSON.stringify(lanCidr)}`
-    );
-  }
   if (!doc || typeof doc !== "object") {
     throw new ErreurTopologie("document vide ou mal formé");
   }
   if (!Array.isArray(doc.sites) || doc.sites.length === 0) {
     throw new ErreurTopologie("aucun site déclaré (clé 'sites' absente ou vide)");
+  }
+
+  // -- Nom du cluster DMR : propriété de la fédération, pas d'un site. ----
+  const fed =
+    doc.federation && typeof doc.federation === "object" ? doc.federation : {};
+  const dmrClusterName =
+    fed.dmr_cluster_name == null || fed.dmr_cluster_name === ""
+      ? DEFAULT_DMR_CLUSTER
+      : String(fed.dmr_cluster_name).trim();
+  if (!DMR_CLUSTER_RE.test(dmrClusterName)) {
+    problemes.push(
+      `federation.dmr_cluster_name : nom de cluster DMR invalide ` +
+        `(${JSON.stringify(fed.dmr_cluster_name)}) ; attendu 1 à 64 caractères ` +
+        `alphanumériques, tiret ou souligné, ne commençant pas par un séparateur`
+    );
   }
 
   // -- Historique des index : Map<index, idDuSite>. Jamais réduit. --------
@@ -180,6 +197,18 @@ function validateTopology(doc, options = {}) {
     if (!addrOk) {
       problemes.push(
         `${ou} ('${id || "?"}').host_address : adresse IPv4 attendue, reçu ${JSON.stringify(brut.host_address)}`
+      );
+    }
+
+    // Réseau de la VM hôte de CE site (D-012). Aucune valeur commune entre
+    // sites : chacun a le sien, et il n'entre dans aucune validation d'un
+    // autre site.
+    const host_cidr =
+      typeof brut.host_cidr === "string" ? brut.host_cidr.trim() : "";
+    const cidrOk = parseCidr(host_cidr) !== null;
+    if (!cidrOk) {
+      problemes.push(
+        `${ou} ('${id || "?"}').host_cidr : CIDR IPv4 attendu (réseau hôte du site), reçu ${JSON.stringify(brut.host_cidr)}`
       );
     }
 
@@ -244,16 +273,24 @@ function validateTopology(doc, options = {}) {
       }
     }
 
-    // Contrôles d'adressage hôte vs LAN vs bloc Docker
-    if (addrOk) {
-      if (!ipInCidr(host_address, lanCidr)) {
+    // Adressage : cohérence du site avec SON PROPRE réseau hôte et sa plage
+    // Docker dérivée. Rien ici ne dépend d'un autre site (D-012).
+    if (cidrOk) {
+      if (cidrsOverlap(host_cidr, DOCKER_BLOCK)) {
         problemes.push(
-          `host_address du site '${id || "?"}' (${host_address}) est hors de la plage LAN attendue ${lanCidr}`
+          `host_cidr du site '${id || "?"}' (${host_cidr}) chevauche le bloc Docker réservé ${DOCKER_BLOCK} ; ` +
+            `le réseau hôte d'un site doit rester hors de ${DOCKER_BLOCK}`
         );
       }
-      if (ipInCidr(host_address, DOCKER_BLOCK)) {
+      if (addrOk && !ipInCidr(host_address, host_cidr)) {
         problemes.push(
-          `host_address du site '${id || "?"}' (${host_address}) tombe dans le bloc Docker réservé ${DOCKER_BLOCK}`
+          `host_address du site '${id || "?"}' (${host_address}) n'est pas dans son réseau hôte host_cidr (${host_cidr})`
+        );
+      }
+      if (indexOk && cidrsOverlap(dockerSubnet(index), host_cidr)) {
+        problemes.push(
+          `la plage Docker du site '${id || "?"}' (${dockerSubnet(index)}, dérivée de l'index ${index}) ` +
+            `chevauche son réseau hôte host_cidr (${host_cidr})`
         );
       }
     }
@@ -263,6 +300,7 @@ function validateTopology(doc, options = {}) {
       index,
       host_address,
       host_port,
+      host_cidr,
       role: { dmr_node_name, dmr_link_initiator }
     });
   });
@@ -277,19 +315,30 @@ function validateTopology(doc, options = {}) {
     );
   }
 
-  // Le bloc Docker global ne doit pas chevaucher le LAN réel des hôtes
-  if (cidrsOverlap(DOCKER_BLOCK, lanCidr)) {
-    problemes.push(
-      `la plage LAN des hôtes (${lanCidr}) chevauche le bloc Docker réservé ${DOCKER_BLOCK} ; ` +
-        `choisissez une plage LAN hors de ${DOCKER_BLOCK}`
-    );
+  // Garde inter-sites : la plage Docker d'un site ne doit contenir
+  // l'host_address d'AUCUN pair. Sinon un paquet destiné à ce pair serait
+  // routé dans le réseau Docker local au lieu de sortir sur le LAN.
+  for (const a of sites) {
+    const idxOk =
+      typeof a.index === "number" && Number.isInteger(a.index) && a.index >= 0 && a.index <= 255;
+    if (!idxOk) continue;
+    const sub = dockerSubnet(a.index);
+    for (const b of sites) {
+      if (b === a || !b.host_address || ipToInt(b.host_address) === null) continue;
+      if (ipInCidr(b.host_address, sub)) {
+        problemes.push(
+          `la plage Docker du site '${a.id || "?"}' (${sub}) contient l'host_address du site '${b.id || "?"}' (${b.host_address}) ; ` +
+            `changez l'index de '${a.id || "?"}' ou l'adresse hôte de '${b.id || "?"}'`
+        );
+      }
+    }
   }
 
   if (problemes.length) throw new ErreurTopologie(problemes);
 
   const maxHist = history.size ? Math.max(...history.keys()) : -1;
   return {
-    lanCidr,
+    dmrClusterName,
     dockerBlock: DOCKER_BLOCK,
     indexHistory: history,
     nextIndex: maxHist + 1,
@@ -304,8 +353,8 @@ function validateTopology(doc, options = {}) {
 // Construit le profil du site `siteId` : sa propre identité réseau + la
 // liste COMPLÈTE des autres sites (maillage total), avec le sens du lien DMR.
 // Valide la topologie au passage : jamais de profil issu d'une source invalide.
-function siteProfile(doc, siteId, options = {}) {
-  const topo = validateTopology(doc, options);
+function siteProfile(doc, siteId) {
+  const topo = validateTopology(doc);
   const self = topo.sites.find(s => s.id === siteId);
   if (!self) {
     throw new ErreurTopologie(`site cible inconnu dans la topologie : '${siteId}'`);
@@ -338,11 +387,14 @@ function siteProfile(doc, siteId, options = {}) {
       index: self.index,
       docker_subnet: dockerSubnet(self.index),
       host_address: self.host_address,
+      host_cidr: self.host_cidr,
       host_port: self.host_port,
       dmr_node_name: self.role.dmr_node_name,
       dmr_link_initiator: policy
     },
-    lan_cidr: topo.lanCidr,
+    // Propriété de la fédération, recopiée telle quelle : solace-dmr.sh la
+    // lit ici plutôt que dans une variable d'environnement.
+    dmr_cluster_name: topo.dmrClusterName,
     docker_block: topo.dockerBlock,
     peers
   };
@@ -367,10 +419,11 @@ function renderSiteProfileYaml(profile) {
   L.push(`  index: ${profile.site.index}`);
   L.push(`  docker_subnet: ${q(profile.site.docker_subnet)}`);
   L.push(`  host_address: ${q(profile.site.host_address)}`);
+  L.push(`  host_cidr: ${q(profile.site.host_cidr)}`);
   L.push(`  host_port: ${profile.site.host_port}`);
   L.push(`  dmr_node_name: ${q(profile.site.dmr_node_name)}`);
   L.push(`  dmr_link_initiator: ${q(profile.site.dmr_link_initiator)}`);
-  L.push(`lan_cidr: ${q(profile.lan_cidr)}`);
+  L.push(`dmr_cluster_name: ${q(profile.dmr_cluster_name)}`);
   L.push(`docker_block: ${q(profile.docker_block)}`);
   L.push("peers:");
   if (!profile.peers.length) {
@@ -412,7 +465,7 @@ function renderSiteEnv(profile) {
 
 module.exports = {
   DOCKER_BLOCK,
-  DEFAULT_LAN_CIDR,
+  DEFAULT_DMR_CLUSTER,
   dockerSubnet,
   ipToInt,
   parseCidr,

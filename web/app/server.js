@@ -24,9 +24,6 @@ const TIMEOUT = 5000;
 // via /stack). Surchargeable pour les tests / autres environnements.
 const TOPOLOGY_PATH =
   process.env.TOPOLOGY_PATH || `${STACK}/PEaaSrepo/topology.yaml`;
-// Plage LAN attendue des VM hôtes : priorité à l'env, sinon au fichier de
-// topologie, sinon défaut du module. Jamais codée en dur ici.
-const HOST_LAN_CIDR = process.env.HOST_LAN_CIDR || null;
 
 // ======================================================================
 //  Utilitaires
@@ -151,9 +148,7 @@ function chargerTopologie() {
   } catch (e) {
     throw new ErreurClient(`Topologie illisible : ${e.message}`, 500);
   }
-  const lanCidr =
-    HOST_LAN_CIDR || (doc && doc.lan && doc.lan.expected_cidr) || undefined;
-  return { doc, lanCidr };
+  return { doc };
 }
 
 // Extrait et valide la cible de génération : { site, overrides }.
@@ -197,9 +192,9 @@ function appliquerOverrides(doc, overrides) {
 function resoudreProfil(body) {
   const { site, overrides } = validerCibleSite(body);
   if (!site) return null;
-  const { doc, lanCidr } = chargerTopologie();
+  const { doc } = chargerTopologie();
   appliquerOverrides(doc, overrides);
-  return siteProfile(doc, site, { lanCidr });
+  return siteProfile(doc, site);
 }
 
 // Appel HTTP avec timeout : sans cela une cible injoignable
@@ -250,16 +245,17 @@ app.get("/api/components", (req, res) => {
 // Liste des sites de la topologie (pour le sélecteur de l'UI). Valide la
 // topologie au passage : une erreur ici signale un topology.yaml à corriger.
 app.get("/api/sites", asyncRoute(async (req, res) => {
-  const { doc, lanCidr } = chargerTopologie();
-  const topo = validateTopology(doc, { lanCidr });
+  const { doc } = chargerTopologie();
+  const topo = validateTopology(doc);
   res.json({
-    lan_cidr: topo.lanCidr,
+    dmr_cluster_name: topo.dmrClusterName,
     docker_block: topo.dockerBlock,
     next_index: topo.nextIndex,
     sites: topo.sites.map(s => ({
       id: s.id,
       index: s.index,
       host_address: s.host_address,
+      host_cidr: s.host_cidr,
       host_port: s.host_port,
       docker_subnet: dockerSubnet(s.index),
       dmr_node_name: s.role.dmr_node_name,

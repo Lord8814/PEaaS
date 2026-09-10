@@ -74,6 +74,14 @@ Format : date, décision, raison, alternatives écartées, statut.
 DMR externes confirmé, `initiator` `local`/`remote` conforme, rejeu idempotent,
 `transportTlsEnabled: true` ajouté au lien pour l'auth par certificat client.
 Reste non vérifié : lien à l'état *actif* en mTLS (exige deux brokers).
+**Amendé (tâche 2, point 2).** Le nom du cluster DMR est une propriété de la
+**fédération**, pas du catalogue ni d'un site : champ `federation.dmr_cluster_name`
+de `topology.yaml`, recopié tel quel dans chaque `site-profile.yaml`, lu par
+`solace-dmr.sh` (fin de la variable d'environnement `SOLACE_DMR_CLUSTER` et de
+toute valeur par défaut câblée dans le script). La cohérence du nom entre sites
+est ainsi garantie par construction. **À traiter en tâche 3** : le rejeu doit
+*supprimer* les `remoteAddresses` d'un lien qui ne figurent plus dans le profil
+(cas du changement d'IP d'un pair), au lieu de seulement ignorer `ALREADY_EXISTS`.
 
 ---
 
@@ -108,7 +116,13 @@ Reste non vérifié : lien à l'état *actif* en mTLS (exige deux brokers).
 **Date.** 10/09/2026
 **Décision.** Suppression de `lan.expected_cidr` et de `HOST_LAN_CIDR`. Chaque site déclare son propre réseau hôte. La validation vérifie que la plage Docker d'un site ne chevauche ni son réseau hôte, ni l'adresse d'un pair.
 **Raison.** Refuser un site parce qu'il n'est pas sur le même réseau que les autres inscrit la proximité dans le code, en contradiction avec la règle d'isolation.
-**Statut.** Retenu.
+**Statut.** Retenu, **implémenté (tâche 2, 10/09)**. Champ `host_cidr` par site dans `topology.yaml`. Règles de validation (`web/app/multisite.js`, `multisite.test.js`) :
+- `host_address` du site contenue dans **son propre** `host_cidr` ;
+- `host_cidr` du site sans chevauchement avec le bloc Docker réservé `10.90.0.0/16` ;
+- plage Docker du site (`10.90.<index>.0/24`) sans chevauchement avec son propre `host_cidr` ;
+- plage Docker d'un site ne contenant l'`host_address` d'**aucun pair** (seule garde inter-sites) ;
+- règles D-005 inchangées (index unique, jamais réattribué, historique).
+Aucune règle ne compare le réseau d'un site à celui d'un autre. `site-profile.yaml` porte désormais `site.host_cidr` et n'a plus de `lan_cidr`.
 
 ---
 

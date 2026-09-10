@@ -151,8 +151,8 @@ function majSite() {
   $("siteAddr").value = s.host_address;
   $("sitePort").value = s.host_port;
   $("siteInfo").textContent =
-    `Plage Docker calculee : ${s.docker_subnet} (ecrite dans .env) — ` +
-    `initiation du lien DMR : ${s.dmr_link_initiator}`;
+    `Reseau hote : ${s.host_cidr} — plage Docker calculee : ${s.docker_subnet} ` +
+    `(ecrite dans .env) — initiation du lien DMR : ${s.dmr_link_initiator}`;
 }
 
 // Corps commun aux requetes /api/compose et /api/package : selection de

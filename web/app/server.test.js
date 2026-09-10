@@ -24,8 +24,8 @@ const BASE = `http://127.0.0.1:${PORT}`;
 // Topologie valide : 3 sites, port applicatif volontairement distinct sur
 // site-b pour vérifier qu'il est bien repris dans le profil.
 const TOPO_OK = `
-lan:
-  expected_cidr: "10.124.40.0/23"
+federation:
+  dmr_cluster_name: peaas
 index_history:
   0: site-a
   1: site-b
@@ -33,17 +33,20 @@ index_history:
 sites:
   - id: site-a
     index: 0
-    host_address: "10.124.40.10"
+    host_address: "10.10.0.10"
+    host_cidr: "10.10.0.0/24"
     host_port: 443
     role: { dmr_node_name: site-a, dmr_link_initiator: lowest_index }
   - id: site-b
     index: 1
-    host_address: "10.124.40.11"
+    host_address: "172.20.5.11"
+    host_cidr: "172.20.5.0/24"
     host_port: 8443
     role: { dmr_node_name: site-b, dmr_link_initiator: lowest_index }
   - id: site-c
     index: 2
-    host_address: "10.124.40.12"
+    host_address: "192.168.30.12"
+    host_cidr: "192.168.30.0/24"
     host_port: 443
     role: { dmr_node_name: site-c, dmr_link_initiator: lowest_index }
 `;
@@ -158,13 +161,17 @@ test("intégration : génération multi-site de bout en bout", async t => {
     assert.equal(profil.site.id, "site-a");
     assert.equal(profil.site.index, 0);
     assert.equal(profil.site.docker_subnet, "10.90.0.0/24");
+    assert.equal(profil.site.host_cidr, "10.10.0.0/24");
+    // nom du cluster DMR recopié depuis la fédération (point 2)
+    assert.equal(profil.dmr_cluster_name, "peaas");
+    assert.ok(!("lan_cidr" in profil), "plus de lan_cidr dans le profil");
 
     const pairs = Object.fromEntries(profil.peers.map(p => [p.id, p]));
     assert.deepEqual(Object.keys(pairs).sort(), ["site-b", "site-c"]);
     assert.ok(!("site-a" in pairs), "le site ne doit pas se lister lui-même");
-    assert.equal(pairs["site-b"].host_address, "10.124.40.11");
+    assert.equal(pairs["site-b"].host_address, "172.20.5.11");
     assert.equal(pairs["site-b"].host_port, 8443);
-    assert.equal(pairs["site-c"].host_address, "10.124.40.12");
+    assert.equal(pairs["site-c"].host_address, "192.168.30.12");
     assert.equal(pairs["site-c"].host_port, 443);
     for (const p of Object.values(pairs)) {
       assert.equal(typeof p.dmr_initiate, "boolean", "rôle DMR présent");
