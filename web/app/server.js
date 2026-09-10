@@ -2,7 +2,11 @@ const express = require("express");
 const archiver = require("archiver");
 const fs = require("fs");
 const yaml = require("js-yaml");
-const components = require("./components");
+const {
+  chargerCatalogue,
+  ordreDemarrage,
+  resoudreDependances
+} = require("./catalogue");
 const {
   dockerSubnet,
   validateTopology,
@@ -19,6 +23,13 @@ app.use(express.static("public"));
 const STACK = process.env.STACK_DIR || "/stack";
 const APISIX = process.env.APISIX_URL || "http://apisix:9080";
 const TIMEOUT = 5000;
+
+// Catalogue de produits : dépôt PEaaSrepo monté en lecture seule sous /stack.
+// Relu à chaque appel — aucun cache : un produit ajouté au catalogue apparaît
+// sans redémarrer le serveur (D-009).
+function catalogue() {
+  return chargerCatalogue(STACK);
+}
 
 // Fichier de topologie inter-sites (dépôt PEaaSrepo, monté en lecture seule
 // via /stack). Surchargeable pour les tests / autres environnements.
@@ -41,8 +52,9 @@ class ErreurClient extends Error {
   }
 }
 
-// Valide et normalise la liste de composants recue du client.
-function validerSelection(body) {
+// Valide et normalise la liste de composants recue du client. `cat` est le
+// catalogue déjà chargé pour la requête.
+function validerSelection(body, cat) {
   if (!body || typeof body !== "object") {
     throw new ErreurClient("Corps de requete invalide");
   }
@@ -57,64 +69,25 @@ function validerSelection(body) {
     throw new ErreurClient("Aucun composant selectionne");
   }
 
-  const inconnus = brut.filter(c => typeof c !== "string" || !components[c]);
+  const inconnus = brut.filter(c => typeof c !== "string" || !cat[c]);
   if (inconnus.length > 0) {
     throw new ErreurClient(`Composant(s) inconnu(s) : ${inconnus.join(", ")}`);
   }
 
-  return resoudreDependances(brut);
+  return resoudreDependances(brut, cat);
 }
 
-function resoudreDependances(choix) {
-  const resultat = new Set(choix);
-
-  function ajouter(cle) {
-    if (!components[cle]) return;
-    for (const dep of components[cle].deps) {
-      if (!resultat.has(dep)) {
-        resultat.add(dep);
-        ajouter(dep);
-      }
-    }
-  }
-
-  choix.forEach(ajouter);
-  return [...resultat];
-}
-
-// Ordre de demarrage : tri topologique du graphe `deps` de components.js
-// (les dependances avant leurs dependants). A egalite, PRIORITE_DEMARRAGE
-// tranche, pour un ordre stable et conforme a CLAUDE.md (§ Structure).
-// Ecrit dans l'archive (.peaas/start-order) pour qu'install.sh n'ait pas a
-// dupliquer la connaissance du catalogue.
-const PRIORITE_DEMARRAGE = [
-  "etcd", "apisix", "prometheus", "grafana",
-  "postgres", "pgadmin", "solace", "nodered1", "nodered2"
-];
-
-function ordreDemarrage(choix) {
-  const cible = new Set(choix);
-  const vus = new Set();
-  const ordre = [];
-  const visiter = c => {
-    if (vus.has(c) || !components[c]) return;
-    vus.add(c);
-    for (const dep of components[c].deps || []) visiter(dep);
-    if (cible.has(c)) ordre.push(c);
-  };
-  for (const c of [...PRIORITE_DEMARRAGE, ...Object.keys(components)]) {
-    if (cible.has(c)) visiter(c);
-  }
-  return ordre;
-}
+// Ordre de démarrage : `ordreDemarrage(choix, cat)` (module catalogue) trie
+// sur le champ `ordre_demarrage` du catalogue. Écrit dans l'archive
+// (.peaas/start-order) pour qu'install.sh n'ait rien à redériver.
 
 // `multisite` (optionnel) : quand vrai, le réseau `peaas` prend sa plage
 // depuis la variable PEAAS_DOCKER_SUBNET, définie dans le fichier `.env`
 // généré par site. Le docker-compose.yaml reste ainsi STRICTEMENT identique
 // quel que soit le site cible ; seul `.env` (et site-profile.yaml) varie.
 // Sans `multisite`, comportement historique (bridge, pas de plage imposée).
-function genererCompose(choix, multisite) {
-  const services = choix.map(c => components[c].service).join("\n");
+function genererCompose(choix, multisite, cat) {
+  const services = choix.map(c => cat[c].composeService).join("\n");
   let reseau = "networks:\n  peaas:\n    driver: bridge\n";
   if (multisite) {
     reseau +=
@@ -238,9 +211,17 @@ function extraireInstance(corps) {
 //  Routes : generation de package
 // ======================================================================
 
-app.get("/api/components", (req, res) => {
-  res.json(components);
-});
+// Liste des produits du catalogue. Forme réduite attendue par public/app.js :
+// { <nom> : { label, deps, description } }. Un produit ajouté au catalogue
+// apparaît ici sans redémarrage ni modification de code (D-009).
+app.get("/api/components", asyncRoute(async (req, res) => {
+  const cat = catalogue();
+  const vue = {};
+  for (const [nom, d] of Object.entries(cat)) {
+    vue[nom] = { label: d.label, deps: d.deps, description: d.description };
+  }
+  res.json(vue);
+}));
 
 // Liste des sites de la topologie (pour le sélecteur de l'UI). Valide la
 // topologie au passage : une erreur ici signale un topology.yaml à corriger.
@@ -265,13 +246,15 @@ app.get("/api/sites", asyncRoute(async (req, res) => {
 }));
 
 app.post("/api/compose", asyncRoute(async (req, res) => {
-  const choix = validerSelection(req.body);
+  const cat = catalogue();
+  const choix = validerSelection(req.body, cat);
   const profil = resoudreProfil(req.body);
-  res.type("text/yaml").send(genererCompose(choix, !!profil));
+  res.type("text/yaml").send(genererCompose(choix, !!profil, cat));
 }));
 
 app.post("/api/package", asyncRoute(async (req, res) => {
-  const choix = validerSelection(req.body);
+  const cat = catalogue();
+  const choix = validerSelection(req.body, cat);
 
   // Resoudre le profil de site AVANT d'ouvrir le flux : une topologie
   // invalide doit remonter en JSON, pas couper une archive a moitie ecrite.
@@ -286,18 +269,23 @@ app.post("/api/package", asyncRoute(async (req, res) => {
     materielTls = issueSiteCert(profil, { force: req.body.regen_cert === true });
   }
 
-  // Verifier les repertoires AVANT d'ouvrir le flux : une fois les
-  // en-tetes envoyes, impossible de renvoyer une erreur JSON.
-  const manquants = choix.filter(c => !fs.existsSync(`${STACK}/${components[c].dir}`));
-  if (manquants.length === choix.length) {
-    throw new ErreurClient(
-      `Aucun repertoire trouve pour : ${manquants.join(", ")}. ` +
-      `Verifier le montage ${STACK}.`, 500
-    );
+  // Verifier la presence des gabarits AVANT d'ouvrir le flux : une fois les
+  // en-tetes envoyes, impossible de renvoyer une erreur JSON. L'archive est
+  // construite EXCLUSIVEMENT depuis le depot (catalogue + gabarits) : aucun
+  // dossier de travail, aucun repertoire data/ (D-009).
+  for (const cle of choix) {
+    for (const fc of cat[cle].fichiersConfig) {
+      if (!fs.existsSync(fc.gabaritPath)) {
+        throw new ErreurClient(
+          `Gabarit absent pour le composant '${cle}' : ${fc.montage} ` +
+            `(${fc.gabaritPath}). Depot PEaaSrepo incomplet ?`,
+          500
+        );
+      }
+    }
   }
 
-  console.log(`[package] ${choix.join(", ")}` +
-    (manquants.length ? ` (ignores : ${manquants.join(", ")})` : ""));
+  console.log(`[package] ${choix.join(", ")}`);
 
   res.attachment("peaas-package.tar.gz");
 
@@ -321,7 +309,7 @@ app.post("/api/package", asyncRoute(async (req, res) => {
   });
 
   archive.pipe(res);
-  archive.append(genererCompose(choix, !!profil), { name: "docker-compose.yaml" });
+  archive.append(genererCompose(choix, !!profil, cat), { name: "docker-compose.yaml" });
 
   // Fichiers propres au site cible. Le docker-compose.yaml, lui, reste
   // identique pour tous les sites.
@@ -341,26 +329,36 @@ app.post("/api/package", asyncRoute(async (req, res) => {
     });
 
     // Installation en une commande sur la VM cible.
-    archive.append(ordreDemarrage(choix).join("\n") + "\n", {
+    archive.append(ordreDemarrage(choix, cat).join("\n") + "\n", {
       name: ".peaas/start-order"
     });
     archive.file(`${__dirname}/install.sh`, { name: "install.sh", mode: 0o755 });
 
-    // Scripts de configuration du socle neutre (federation DMR Solace).
-    // On versionne le script, jamais son resultat : install.sh le rejoue.
+    // Scripts de configuration du socle neutre : inclus des qu'un produit
+    // retenu declare un `script_setup`. On versionne le script, jamais son
+    // resultat : install.sh le rejoue (federation DMR Solace, etc.).
     const scriptsDir = `${STACK}/PEaaSrepo/scripts`;
-    if (choix.includes("solace") && fs.existsSync(scriptsDir)) {
+    const besoinScripts = choix.some(c => cat[c] && cat[c].scriptSetup);
+    if (besoinScripts && fs.existsSync(scriptsDir)) {
       archive.directory(scriptsDir, "scripts");
     }
   }
 
+  // Contenu par composant : UNIQUEMENT les gabarits versionnes du depot
+  // (fichiers_config du catalogue). Pas de data/, rien des dossiers de
+  // travail (D-009). Les composants sans gabarit recoivent un marqueur pour
+  // qu'install.sh les voie (contrat `[ -d "$comp" ]`).
   for (const cle of choix) {
-    const dir = components[cle].dir;
-    if (manquants.includes(cle)) continue;
-
-    const opts = { cwd: `${STACK}/${dir}`, dot: true };
-    if (components[cle].exclude) opts.ignore = components[cle].exclude;
-    archive.glob("**/*", opts, { prefix: dir });
+    const fics = cat[cle].fichiersConfig;
+    for (const fc of fics) {
+      archive.file(fc.gabaritPath, {
+        name: fc.montage,
+        mode: fc.ro ? 0o444 : 0o644
+      });
+    }
+    if (fics.length === 0) {
+      archive.append(`${cle}\n`, { name: `${cle}/.peaas-component` });
+    }
   }
 
   archive.finalize();
@@ -375,7 +373,6 @@ app.get("/api/health", asyncRoute(async (req, res) => {
   const cibles = [
     { nom: "APISIX",     url: `${APISIX}/api/get` },
     { nom: "Node-RED 1", url: "http://nodered1:1880/" },
-    { nom: "Node-RED 2", url: "http://nodered2:1880/" },
     { nom: "Solace",     url: "http://solace:8080/" },
     { nom: "Prometheus", url: "http://prometheus:9090/-/healthy" },
     { nom: "Grafana",    url: "http://grafana:3000/api/health" }

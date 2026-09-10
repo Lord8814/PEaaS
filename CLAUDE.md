@@ -7,7 +7,7 @@
   - `/mnt` = espace de travail non versionné (générateur en développement, tests, brouillons). Rien de ce qui s'y trouve n'est garanti de survivre.
   - `PEaaSrepo/` = dépôt Git du socle (D-001). Catalogue de produits, fichier de topologie, scripts de setup, scripts de cas d'usage. Rien d'autre n'y entre : pas de secret généré, pas de résultat de génération, pas de brouillon.
 - Aucun passage automatique de l'un vers l'autre. Un fichier ne rejoint `PEaaSrepo/` que par une action explicite et validée, jamais par défaut.
-- Catalogue : un fichier par produit, `PEaaSrepo/catalogue/<nom>.yaml`.
+- Catalogue : un dossier par produit, `PEaaSrepo/catalogue/<nom>/produit.yaml`, avec ses gabarits de configuration dans le même dossier.
 
 ### Docker & Compose
 - Compose v2 seulement : `docker compose`. Jamais `docker-compose`.
@@ -30,13 +30,13 @@
 
 ### Générateur (`web/`)
 - `webapp` sert l'UI sur `127.0.0.1:3001`, monte `./app` en RW et `/mnt` en `/stack:ro` (lecture seule : ne modifie jamais le socle).
-- Produit : `docker-compose.yaml` assemblé depuis `web/app/components.js` selon la sélection, dépendances résolues ; + contenu de `/stack/<dir>` par composant retenu ; le tout dans `peaas-package.tar.gz`.
+- Produit : `docker-compose.yaml` assemblé depuis le catalogue (`PEaaSrepo/catalogue/*/produit.yaml`, lu par `web/app/catalogue.js`) selon la sélection, dépendances résolues ; + les gabarits `fichiers_config` du dépôt et les `scripts/` de setup ; le tout dans `peaas-package.tar.gz`. Aucun contenu des dossiers de travail, aucun `*/data/` (D-009).
 - Le compose émis déclare `peaas` en `driver: bridge`, pas `external` (un site neuf crée le sien).
 - Ne doit pas embarquer : secrets et clés/certificats, le catalogue, le contenu de `*/data/`.
 
 ## Structure
 
-Aucun `depends_on` déclaré. Ordre à respecter au démarrage manuel (graphe de `components.js`) :
+Aucun `depends_on` déclaré. Ordre à respecter au démarrage manuel (`ordre_demarrage` du catalogue) :
 1. `etcd`
 2. `apisix` (après `etcd`)
 3. `prometheus` (après `apisix`, qu'il scrape sur `:9091`)

@@ -49,14 +49,14 @@ set -euo pipefail
 
 RESEAU="${PEAAS_NETWORK:-peaas}"
 
-# Ordre de reference si .peaas/start-order est absent (cf. CLAUDE.md, graphe
-# `deps` de components.js : apisix<-etcd, prometheus<-apisix, grafana<-
-# prometheus, pgadmin<-postgres ; solace et node-red autonomes).
-ORDRE_DEFAUT=(etcd apisix prometheus grafana postgres pgadmin solace nodered1 nodered2)
+# Ordre de reference si .peaas/start-order est absent (cf. CLAUDE.md et
+# `ordre_demarrage` du catalogue : apisix<-etcd, prometheus<-apisix,
+# grafana<-prometheus, pgadmin<-postgres ; solace et node-red autonomes).
+ORDRE_DEFAUT=(etcd apisix prometheus grafana postgres pgadmin solace nodered1)
 
 # Composants dont le volume data/ demande un proprietaire precis (uid stable
 # de l'image). chown si possible, sinon repli 0777 + avertissement (PoC).
-declare -A DATA_UID=( [grafana]=472 [prometheus]=65534 [nodered1]=1000 [nodered2]=1000 [pgadmin]=5050 )
+declare -A DATA_UID=( [grafana]=472 [prometheus]=65534 [nodered1]=1000 [pgadmin]=5050 )
 # Composants dont l'entrypoint ajuste lui-meme les droits : simple mkdir.
 DATA_MKDIR_SEUL=(etcd postgres)
 # Composants dont l'uid interne varie selon l'image : droits larges (PoC).
@@ -133,7 +133,7 @@ done
 # Fichiers de conf montes dans les conteneurs : l'archive peut les livrer
 # en lecture restreinte (durcissement a la source). L'uid du service (souvent
 # != root) doit pouvoir les lire -> on elargit la LECTURE uniquement.
-for comp in etcd apisix solace nodered1 nodered2 postgres pgadmin prometheus grafana; do
+for comp in etcd apisix solace nodered1 postgres pgadmin prometheus grafana; do
   [ -d "$comp" ] || continue
   for d in config conf; do
     [ -d "$comp/$d" ] && chmod -R a+rX "$comp/$d" 2>/dev/null || true

@@ -18,7 +18,13 @@ Format : date, décision, raison, alternatives écartées, statut.
 **Décision.** Catalogue de produits, fichier de topologie et scripts de configuration stockés dans un dépôt Git, un fichier par produit.
 **Raison.** Historique, relecture, retour arrière et sauvegarde obtenus sans développement. Un script de configuration est du code.
 **Écarté.** Base orientée documents dédiée (composant supplémentaire à maintenir). PostgreSQL du socle (dépendance circulaire : composant déployé par le générateur).
-**Statut.** Retenu.
+**Statut.** Retenu, **précisé (tâche 4, 10/09)** : **un dossier par produit,
+contenant son entrée et ses gabarits** — `PEaaSrepo/catalogue/<nom>/produit.yaml`
+avec, dans le même dossier, les gabarits `fichiers_config` du produit. La forme
+« un fichier `catalogue/<nom>.yaml` à plat » de la rédaction initiale est
+abandonnée : le générateur a besoin des gabarits (jamais commités jusque-là), les
+loger à côté de l'entrée évite un second arbre à tenir cohérent. CLAUDE.md
+§Contraintes ajusté ; la doc de référence (§ dépôt) reste à réaligner.
 
 ---
 
@@ -97,6 +103,35 @@ d'IP modifiée et relit la liste.
 **Nommage.** Les noms déjà utilisés par le socle livré font référence : réseau externe `peaas`, noms de composants et de conteneurs tels qu'employés par `install.sh`, le `.env`, `solace-dmr.sh` et D-005 à D-008. Le catalogue s'aligne sur eux (`peaas-net` → `peaas`, etc.). Le catalogue est la source de vérité **pour la suite** ; son contenu actuel n'avait jamais été branché et ne fait pas autorité.
 **Écarté.** Conserver l'archivage en filtrant les données (filtrage fragile, et la configuration Solace vit de toute façon dans ses données). Renommer le socle livré vers les noms du catalogue (modification transverse sans gain, casse D-005/D-007/D-008).
 **Statut.** Retenu. Remplace la description de la section 3.2 d'origine.
+**Implémenté (tâche 4, 10/09).**
+- Catalogue restructuré : `catalogue/<nom>/produit.yaml` + gabarits dans le même
+  dossier (au lieu de `catalogue/<nom>.yaml` à plat). CLAUDE.md §Contraintes ajusté
+  en conséquence.
+- Nouveau module `web/app/catalogue.js` (lecture + validation, testable seul).
+  `web/app/components.js` **supprimé** ; plus aucune liste de composants en dur.
+- `server.js` : `/api/components`, résolution des dépendances (`depend_de`),
+  génération du compose (blocs `compose:` du catalogue réindentés), ordre de
+  démarrage (`ordre_demarrage`) et assemblage de l'archive proviennent tous du
+  catalogue. L'archive ne contient que : `docker-compose.yaml` assemblé, `.env`,
+  `site-profile.yaml`, `certs/`, `install.sh`, `.peaas/start-order`, les gabarits
+  `fichiers_config` du dépôt, les `scripts/` si un produit retenu a un
+  `script_setup`, et un marqueur `<comp>/.peaas-component` pour les composants sans
+  gabarit (contrat `[ -d ]` d'`install.sh`). **Aucun `data/`, rien des dossiers de
+  travail.**
+- Noms alignés sur le socle livré : réseau `peaas` (plus `peaas-net`),
+  `container_name` sans préfixe `peaas-`, disposition des volumes du socle.
+- Test remplacé : « diff du compose identique » → **diff de la totalité de deux
+  archives de sites** ; seuls `site-profile.yaml`, `.env`, `certs/` diffèrent.
+  Nouveau `catalogue.test.js`. Test « produit fictif » : un YAML ajouté au
+  catalogue apparaît dans `/api/components` et dans l'archive sans toucher au code.
+- **nodered1** : le socle neutre fournit **une seule** instance Node-RED
+  (`nodered2`, démo round-robin, retiré du générateur et d'`install.sh`). Ses
+  trois gabarits sont neutres et sans secret : `settings.js` réécrit sans
+  `credentialSecret` ni `adminAuth` en dur (Node-RED génère sa clé au premier
+  démarrage, dans `data/`) ; `flows.json` = `[]` ; `package.json` sans
+  dépendance. Les flux de démonstration (`GetNameData`, `PostNameData`,
+  `EnvoieMQTT`, `PostDB`, `SearchDB+MQTT`) et les contribs `postgresql` / `loop`
+  relèvent d'un **cas d'usage métier** : signalés, non intégrés au socle.
 
 ---
 
@@ -105,7 +140,11 @@ d'IP modifiée et relit la liste.
 **Décision.** APISIX est configuré par un script d'appels à l'Admin API, etcd étant conservé comme stockage produit et jamais archivé. Node-RED reçoit un fichier de flows versionné, PostgreSQL des scripts SQL d'initialisation, les autres composants des fichiers de réglages en gabarit.
 **Raison.** Même logique que D-008, appliquée partout.
 **Écarté.** APISIX en mode autonome à fichier YAML : supprime etcd et simplifie, mais change la composition du socle en cours de chantier. À reconsidérer si le rejeu Admin API pose problème.
-**Statut.** Retenu.
+**Statut.** Retenu. **Amorcé (tâche 4)** : le champ `script_setup` est porté par
+chaque `produit.yaml` et le générateur inclut `PEaaSrepo/scripts/` dans l'archive
+dès qu'un produit retenu en déclare un. Seul `solace-dmr.sh` a un corps
+aujourd'hui ; `apisix.sh` (route de santé neutre) et `postgres.sh` (schéma SQL
+neutre) sont référencés mais restent à écrire — tâche 5.
 
 ---
 

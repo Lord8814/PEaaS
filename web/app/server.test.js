@@ -12,11 +12,15 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { spawn, execFileSync } = require("node:child_process");
 const { once } = require("node:events");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const yaml = require("js-yaml");
 const forge = require("node-forge");
+
+// Catalogue réel du dépôt : le générateur ne lit QUE PEaaSrepo/ (D-009).
+const CATALOGUE_REEL = path.join(__dirname, "..", "..", "PEaaSrepo", "catalogue");
 
 const PORT = 34117;
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -57,21 +61,52 @@ const TOPO_DUP = TOPO_OK.replace(
   '  - id: site-c\n    index: 1\n'
 );
 
-// Fabrique le bac à sable : faux /stack (dossiers de composants non vides)
-// + fichier topology.yaml.
+// Fabrique le bac à sable : un faux /stack qui ne contient QUE le dépôt
+// PEaaSrepo (catalogue réel + scripts) et un topology.yaml. Aucun dossier de
+// travail de composant : l'archive se construit exclusivement depuis le dépôt.
 function fabriquerSandbox() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "peaas-it-"));
-  for (const comp of ["etcd", "apisix", "solace"]) {
-    fs.mkdirSync(path.join(dir, comp), { recursive: true });
-    fs.writeFileSync(path.join(dir, comp, "placeholder.conf"), "# test\n");
-  }
-  // scripts de configuration du socle (bundlés quand solace est retenu)
-  fs.mkdirSync(path.join(dir, "PEaaSrepo", "scripts", "setup", "lib"), { recursive: true });
-  fs.writeFileSync(path.join(dir, "PEaaSrepo", "scripts", "setup", "solace-dmr.sh"), "#!/usr/bin/env bash\n");
-  fs.writeFileSync(path.join(dir, "PEaaSrepo", "scripts", "setup", "lib", "dmr-initiator.sh"), "#!/usr/bin/env bash\n");
+  fs.cpSync(CATALOGUE_REEL, path.join(dir, "PEaaSrepo", "catalogue"), {
+    recursive: true
+  });
+  // scripts de configuration du socle (bundlés quand un produit retenu a un
+  // `script_setup` — solace ici).
+  fs.mkdirSync(path.join(dir, "PEaaSrepo", "scripts", "setup", "lib"), {
+    recursive: true
+  });
+  fs.writeFileSync(
+    path.join(dir, "PEaaSrepo", "scripts", "setup", "solace-dmr.sh"),
+    "#!/usr/bin/env bash\n"
+  );
+  fs.writeFileSync(
+    path.join(dir, "PEaaSrepo", "scripts", "setup", "lib", "dmr-initiator.sh"),
+    "#!/usr/bin/env bash\n"
+  );
   const topoPath = path.join(dir, "topology.yaml");
   fs.writeFileSync(topoPath, TOPO_OK);
   return { dir, topoPath };
+}
+
+// Extrait une archive tar.gz et renvoie { <chemin relatif> : sha256 } de tous
+// ses fichiers — pour comparer DEUX archives sur la totalité de leur contenu.
+function empreintesArchive(archivePath, dest) {
+  fs.mkdirSync(dest, { recursive: true });
+  execFileSync("tar", ["xzf", archivePath, "-C", dest]);
+  const out = {};
+  const walk = d => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else {
+        out[path.relative(dest, p)] = crypto
+          .createHash("sha256")
+          .update(fs.readFileSync(p))
+          .digest("hex");
+      }
+    }
+  };
+  walk(dest);
+  return out;
 }
 
 async function attendrePret() {
@@ -218,20 +253,95 @@ test("intégration : génération multi-site de bout en bout", async t => {
     assert.ok(sanIp.includes("10.10.0.10"), `IP SAN : ${sanIp}`); // host_address de TOPO_OK
   });
 
-  await t.test("site-b et site-c : docker-compose.yaml identique à celui de site-a", async () => {
+  await t.test("archives de deux sites : seuls site-profile.yaml, .env et certs/ diffèrent (D-009)", async () => {
     fs.writeFileSync(topoPath, TOPO_OK);
-    const composes = {};
-    for (const site of ["site-a", "site-b", "site-c"]) {
+
+    const emp = {};
+    for (const site of ["site-a", "site-b"]) {
       const res = await demanderPackage(site);
       assert.equal(res.status, 200, stderr);
-      const archive = path.join(dir, `${site}.tar.gz`);
+      const archive = path.join(dir, `full-${site}.tar.gz`);
       fs.writeFileSync(archive, Buffer.from(await res.arrayBuffer()));
-      composes[site] = execFileSync("tar", ["xzOf", archive, "docker-compose.yaml"], {
+      emp[site] = empreintesArchive(archive, path.join(dir, `full-${site}`));
+    }
+
+    // Exactement le même ensemble de fichiers dans les deux archives.
+    assert.deepEqual(
+      Object.keys(emp["site-a"]).sort(),
+      Object.keys(emp["site-b"]).sort()
+    );
+
+    // Le diff porte sur TOUTE l'archive : il ne doit toucher que l'identité.
+    const differents = Object.keys(emp["site-a"])
+      .filter(k => emp["site-a"][k] !== emp["site-b"][k])
+      .sort();
+    for (const k of differents) {
+      assert.ok(
+        k === "site-profile.yaml" || k === ".env" || k.startsWith("certs/"),
+        `fichier inattendu dans le diff site-a / site-b : ${k}`
+      );
+    }
+    assert.ok(differents.includes("site-profile.yaml"), differents.join(","));
+    assert.ok(differents.includes(".env"), differents.join(","));
+
+    // Le reste est identique à l'octet près (compose, install.sh, ordre,
+    // gabarits, scripts, marqueurs de composant).
+    for (const k of ["docker-compose.yaml", "install.sh", ".peaas/start-order"]) {
+      assert.equal(emp["site-a"][k], emp["site-b"][k], `${k} diffère`);
+    }
+    // Aucun répertoire data/ ni fichier issu d'un dossier de travail.
+    for (const k of Object.keys(emp["site-a"])) {
+      assert.doesNotMatch(k, /(^|\/)data\//, `data/ dans l'archive : ${k}`);
+    }
+  });
+
+  await t.test("produit fictif ajouté au catalogue : listé et packagé sans modif de code", async () => {
+    const pd = path.join(dir, "PEaaSrepo", "catalogue", "demo-fictif");
+    fs.mkdirSync(pd, { recursive: true });
+    fs.writeFileSync(
+      path.join(pd, "produit.yaml"),
+      [
+        "nom: demo-fictif",
+        "libelle: Démo fictive",
+        "description: produit de test",
+        "compose: |",
+        "  demo-fictif:",
+        "    image: busybox",
+        "    command: sleep infinity",
+        "    networks: [peaas]",
+        "depend_de: []",
+        "ordre_demarrage: 99",
+        "fichiers_config:",
+        "  - { gabarit: note.txt, montage: demo-fictif/config/note.txt }"
+      ].join("\n")
+    );
+    fs.writeFileSync(path.join(pd, "note.txt"), "gabarit fictif\n");
+
+    try {
+      const liste = await (await fetch(`${BASE}/api/components`)).json();
+      assert.ok("demo-fictif" in liste, Object.keys(liste).join(","));
+      assert.equal(liste["demo-fictif"].label, "Démo fictive");
+
+      const res = await fetch(`${BASE}/api/package`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ composants: ["demo-fictif"], site: "site-a" })
+      });
+      assert.equal(res.status, 200, stderr);
+      const arch = path.join(dir, "fictif.tar.gz");
+      fs.writeFileSync(arch, Buffer.from(await res.arrayBuffer()));
+      const noms = execFileSync("tar", ["tzf", arch], { encoding: "utf8" })
+        .split("\n")
+        .filter(Boolean);
+      assert.ok(noms.includes("demo-fictif/config/note.txt"), noms.join(" "));
+      const compose = execFileSync("tar", ["xzOf", arch, "docker-compose.yaml"], {
         encoding: "utf8"
       });
+      assert.match(compose, /demo-fictif:/);
+      assert.match(compose, /command: sleep infinity/);
+    } finally {
+      fs.rmSync(pd, { recursive: true, force: true });
     }
-    assert.equal(composes["site-b"], composes["site-a"]);
-    assert.equal(composes["site-c"], composes["site-a"]);
   });
 
   await t.test("mTLS : CA unique, certs de site réutilisés, clés privées disjointes", async () => {

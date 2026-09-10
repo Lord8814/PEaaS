@@ -1,7 +1,8 @@
 ---
 Décrit le contenu attendu du catalogue et son état d'avancement.
-Le catalogue lui-même vit dans le dépôt Git (`PEaaSrepo/catalogue/<nom>.yaml`) ;
-ce fichier en est la spécification.
+Le catalogue vit dans le dépôt Git : **un dossier par produit**,
+`PEaaSrepo/catalogue/<nom>/produit.yaml`, avec ses gabarits de configuration
+dans le même dossier. Ce fichier en est la spécification.
 ---
 
 # Catalogue — spécification
@@ -13,11 +14,11 @@ ce fichier en est la spécification.
 | `nom` | Identifiant technique du produit | oui |
 | `libelle` | Nom affiché dans l'interface | oui |
 | `description` | Une phrase, pour un lecteur non technique | oui |
-| `compose` | Gabarit du fichier compose, avec variables | oui |
-| `variables` | Variables attendues et leurs valeurs par défaut (jamais pour un identifiant) | oui |
-| `ports` | Ports internes et exposés, avec leur liaison (toutes interfaces / hôte local) | oui |
-| `identifiants` | Identifiants à saisir à la génération ; aucune valeur par défaut | non |
-| `fichiers_config` | Fichiers de configuration versionnés à monter (gabarits) | non |
+| `compose` | Bloc de service compose (clé de service au ras de la marge, indentation 0). Le générateur le réindente sous `services:` et ajoute le réseau `peaas` | oui |
+| `variables` | Variables `${NOM}` et leur `defaut` (jamais pour un identifiant) ; substituées à la lecture du catalogue | oui |
+| `ports` | Ports internes et exposés, avec leur liaison (`toutes` / `local`) — descriptif | oui |
+| `identifiants` | Liste `{ variable, libelle }` à saisir à la génération ; aucune valeur par défaut | non |
+| `fichiers_config` | Gabarits à monter : `{ gabarit: <nom dans le dossier produit>, montage: <chemin dans l'archive>, ro: <bool> }` | non |
 | `depend_de` | Autres produits requis | non |
 | `incompatible_avec` | Produits mutuellement exclusifs | non |
 | `script_setup` | Script de configuration neutre rejoué à l'installation | non |
@@ -36,21 +37,23 @@ ce fichier en est la spécification.
 
 ## Produits au catalogue
 
-> État au 10/09/2026 : des fichiers YAML existent dans `PEaaSrepo/catalogue/`
-> mais le générateur ne les lit pas encore, et certains noms divergent du code
-> (`peaas` / `peaas-net`, `solace` / `peaas-solace`). Direction retenue (D-009) :
-> le catalogue s'aligne sur les noms du socle livré.
+> État au 10/09/2026, après tâche 4 : le générateur lit **exclusivement** le
+> catalogue (`web/app/catalogue.js` ; `components.js` supprimé). Noms alignés sur
+> le socle livré (D-009) : réseau `peaas`, `container_name` sans préfixe.
 
-| Produit | Entrée rédigée | Branchée au générateur | Gabarit testé | Config rejouée |
+| Produit | Entrée rédigée | Branchée au générateur | Gabarit | Config rejouée |
 |---|---|---|---|---|
-| APISIX | | non | | Script Admin API |
-| etcd | | non | | — |
-| Solace | | non | | Script SEMPv2 |
-| Node-RED | | non | | Fichier de flows |
-| PostgreSQL | | non | | Scripts SQL |
-| pgAdmin | | non | | Gabarit |
-| Prometheus | | non | | Gabarit |
-| Grafana | | non | | Gabarit |
+| APISIX | oui | oui | `config.yaml` (`admin_key` → `${APISIX_ADMIN_KEY}`) | `script_setup` référencé, corps = tâche 5 |
+| etcd | oui | oui | — (stockage produit) | — |
+| Solace | oui | oui | — | `solace-dmr.sh` (fait) |
+| Node-RED | oui | oui | `settings.js` neutre, `flows.json` = `[]`, `package.json` sans dépendance | flux monté au 1er démarrage |
+| PostgreSQL | oui | oui | — | `script_setup` référencé, corps = tâche 5 |
+| pgAdmin | oui | oui | — | — |
+| Prometheus | oui | oui | `prometheus.yml` | — |
+| Grafana | oui | oui | — | — |
+
+> `nodered2` (démo round-robin) n'est plus au catalogue : instance unique dans le
+> socle neutre. Les flux Node-RED de démonstration sont un cas d'usage, hors socle.
 
 ## Cas d'usage envisagés
 

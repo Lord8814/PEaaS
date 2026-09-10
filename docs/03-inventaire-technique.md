@@ -49,6 +49,33 @@ Fichier vivant. Toutes les valeurs concrètes du montage.
 | Prometheus | | | | | Gabarit de réglages |
 | Grafana | | | | | Gabarit de réglages |
 
+## Inventaire `data/` par composant (tâche 4a)
+
+Relevé sur la VM avant branchement du catalogue. **descriptif** → extrait en
+gabarit dans `PEaaSrepo/catalogue/<nom>/` ; **produit** → état d'exécution, jamais
+lu ni archivé (D-009) ; **cas d'usage** → signalé, hors socle.
+
+| Composant | Élément | Taille | Classe | Traitement |
+|---|---|---|---|---|
+| apisix | `config/config.yaml` | 34 l. | descriptif | gabarit `catalogue/apisix/config.yaml` ; `admin_key` → `${APISIX_ADMIN_KEY}` (D-011) ; `allow_admin: 0.0.0.0/0` laissé (durcissement D-018 = tâche 6) |
+| apisix | routes / upstreams dans etcd | — | cas d'usage | hors socle ; route de santé neutre via `script_setup` (tâche 5) |
+| etcd | `data/member/{snap,wal}` | 62 Mo | produit | stockage produit, jamais archivé |
+| solace | `data/config/**` (confd, nginx, ssl, trusted-roots, oauth-*, licence) | — | produit | config DMR rejouée par `solace-dmr.sh` (tâche 1) |
+| solace | `data/{spool,spool-cache*,diagnostics,diags,jail,var}` | ~850 Mo | produit | jamais archivé |
+| nodered1 | `config/settings.js` | 649 l. | descriptif | gabarit **neutre** réécrit (sans `credentialSecret` ni `adminAuth` en dur — D-011) |
+| nodered1 | `config/flows.json` (GetNameData, PostDB, EnvoieMQTT, SearchDB+MQTT) | 597 l. | **cas d'usage** | hors socle ; gabarit `flows.json` = `[]` |
+| nodered1 | `config/package.json` (`node-red-contrib-postgresql`, `-loop`) | 10 l. | descriptif orienté cas d'usage | gabarit socle `dependencies: {}` |
+| nodered1 | `data/{.config.*,flows_cred.json,.sessions.json,lib,node_modules,.npm}` | 4,2 Mo | produit | jamais archivé |
+| nodered1 | `nodered1/nodered1/config/*` | — | artefact parasite | à supprimer du dossier de travail |
+| postgres | `data/` (vide) | 4 Ko | produit | jamais archivé ; schéma neutre via script SQL (tâche 5) |
+| pgadmin | `data/{pgadmin4.db,sessions/*,storage,azurecredentialcache}` | 248 Ko | produit | jamais archivé |
+| prometheus | `conf/prometheus.yml` (scrape `apisix:9091` + self) | 11 l. | descriptif neutre | gabarit `catalogue/prometheus/prometheus.yml` |
+| prometheus | `data/{blocs TSDB,wal,chunks_head}` | 2,7 Mo | produit | jamais archivé |
+| grafana | `config/` (vide) ; `data/{grafana.db,plugins,csv,pdf,png,unified-search}` | 52 Mo | produit | jamais archivé ; provisioning éventuel = gabarit (aucun présent) |
+
+Aucune suppression de `*/data/` : le générateur cesse simplement de les lire. Les
+dossiers `/mnt/<composant>/` restent comme environnement de run local.
+
 ## Ports
 
 | Flux | Port interne | Port exposé | Liaison | Sens d'ouverture |
@@ -60,14 +87,27 @@ Fichier vivant. Toutes les valeurs concrètes du montage.
 | Admin API APISIX | | | `127.0.0.1` seulement | Local |
 | etcd | | | Non publié / local | Local |
 
-> Les ports sont portés par le catalogue. Passage sur 443 via passe-plat :
-> ouvert, conditionné à la vérification de l'aiguillage TCP d'APISIX.
+> Les ports sont portés par le catalogue (`ports:` de chaque `produit.yaml`,
+> champ descriptif ; les blocs `compose:` restent la référence pour la
+> génération). Les liaisons `127.0.0.1` des interfaces d'administration
+> (SEMP, Admin API APISIX, etcd — D-018) ne sont **pas encore** appliquées :
+> les blocs `compose:` du catalogue reprennent les publications du socle livré ;
+> c'est le livrable de la tâche 6. Passage sur 443 via passe-plat : ouvert,
+> conditionné à la vérification de l'aiguillage TCP d'APISIX.
 >
 > Prérequis du broker Solace pour la fédération DMR (établis par le test
 > d'intégration, tâche 1 du lot correctif du 10/09) :
 > - démarrage avec `system_scaling_maxconnectioncount` ≥ 1000 — en deçà, le
 >   broker refuse toute création de `dmrCluster` (`MAX_NUM_EXCEEDED` /
->   « dynamic-message-routing is not supported ... limit for connections is 100 ») ;
+>   « dynamic-message-routing is not supported ... limit for connections is 100 »).
+>   Le catalogue fixe donc `system_scaling_maxconnectioncount: "1000"`
+>   (`catalogue/solace/produit.yaml`, tâche 4).
+>   **Empreinte mémoire (`memoire_min_mo`)** : la doc Solace PubSub+ standard
+>   annonce ~2 GiB au palier 1000 connexions (contre ~1 GiB au palier 100) ; le
+>   test d'intégration de la tâche 1 tournait avec une limite conteneur de 4 Gio.
+>   **Valeur provisoire retenue : `memoire_min_mo = 4096`**, marquée « à remplacer
+>   par la mesure du site A ». Le compose conserve `shm_size: 1g` ; à relever si
+>   le broker sort en *POST Violation*. Les VM cibles (8 Go) ont la marge ;
 > - `ulimit nofile` = 1048576 au démarrage (sinon le conteneur sort en
 >   *POST Violation*) ;
 > - un seul `dmrCluster` par broker en édition *standard* ;
@@ -120,6 +160,6 @@ Fichier vivant. Toutes les valeurs concrètes du montage.
 | Aucun réseau commun décrit dans la topologie | | D-012 |
 | Aucun volume ou montage partagé entre sites | | |
 | Aucune résolution de nom dépendante du réseau local (pas d'entrée `hosts` ajoutée) | | |
-| Aucun répertoire `data/` dans l'archive | | D-009 |
+| Aucun répertoire `data/` dans l'archive | oui | D-009, tâche 4 — vérifié par test (diff pleine archive) + contrôle manuel (`tar tzf` : 0 entrée `*/data/`) |
 | Horloge synchronisée indépendamment sur chaque VM | | D-017 |
 | Test de déplacement d'une VM sur un autre réseau | | |
