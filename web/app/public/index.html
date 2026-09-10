@@ -20,6 +20,31 @@
   <p>Selectionnez les composants a deployer :</p>
   <ul id="liste"></ul>
 
+  <fieldset id="multisite" class="cache">
+    <legend>Site cible (multi-site)</legend>
+    <p class="aide">
+      Valeurs lues depuis <code>topology.yaml</code>. Une modification ci-dessous
+      s'applique au package genere mais n'est PAS reecrite dans le depot :
+      reportez-la dans <code>topology.yaml</code>.
+    </p>
+    <div class="controles">
+      <label>Site
+        <select id="siteCible"></select>
+      </label>
+      <label><code>host_address</code>
+        <input type="text" id="siteAddr" placeholder="ex. 10.124.40.10">
+      </label>
+      <label><code>host_port</code>
+        <input type="number" id="sitePort" min="1" max="65535" value="443">
+      </label>
+    </div>
+    <label class="ligne">
+      <input type="checkbox" id="regenCert">
+      Regenerer le certificat mTLS du site (sinon reutilise s'il est encore valide)
+    </label>
+    <p id="siteInfo" class="aide"></p>
+  </fieldset>
+
   <div class="actions">
     <button id="generer">Telecharger le package (tar.gz)</button>
     <button id="composeSeul" class="secondaire">Compose seul</button>

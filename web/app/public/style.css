@@ -63,3 +63,14 @@ th { background: #f4f4f4; }
   display: inline-block; height: 14px; background: #4a7;
   vertical-align: middle; margin-right: 6px; border-radius: 2px;
 }
+
+/* Multi-site */
+#multisite {
+  border: 1px solid #ddd; border-radius: 4px;
+  padding: 8px 16px 16px; margin: 16px 0;
+}
+#multisite legend { font-size: 0.9em; font-weight: 600; padding: 0 6px; }
+#multisite .controles { margin-bottom: 4px; }
+#multisite .ligne { display: block; font-size: 0.9em; margin: 8px 0 0; }
+#multisite .ligne input { margin-right: 6px; }
+#siteInfo { margin: 4px 0 0; }

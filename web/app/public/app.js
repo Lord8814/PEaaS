@@ -116,6 +116,65 @@ function appliquerDependances() {
 const selection = () => [...document.querySelectorAll("input:checked")].map(c => c.value);
 
 // ======================================================================
+//  Multi-site : selecteur de site cible
+// ======================================================================
+
+let sitesParId = {};
+
+api("/api/sites")
+  .then(afficherSites)
+  .catch(() => { /* pas de topologie : generation mono-site, section masquee */ });
+
+function afficherSites(data) {
+  sitesParId = {};
+  const sel = $("siteCible");
+  sel.innerHTML = "";
+
+  data.sites.forEach(s => {
+    sitesParId[s.id] = s;
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.textContent = `${s.id} (index ${s.index} → ${s.docker_subnet})`;
+    sel.appendChild(opt);
+  });
+
+  if (!data.sites.length) return;
+  sel.value = data.sites[0].id;
+  sel.addEventListener("change", majSite);
+  majSite();
+  $("multisite").classList.remove("cache");
+}
+
+function majSite() {
+  const s = sitesParId[$("siteCible").value];
+  if (!s) return;
+  $("siteAddr").value = s.host_address;
+  $("sitePort").value = s.host_port;
+  $("siteInfo").textContent =
+    `Plage Docker calculee : ${s.docker_subnet} (ecrite dans .env) — ` +
+    `initiation du lien DMR : ${s.dmr_link_initiator}`;
+}
+
+// Corps commun aux requetes /api/compose et /api/package : selection de
+// composants + (si multi-site) site cible et surcharges du formulaire.
+function corpsGeneration() {
+  const body = { composants: selection() };
+  const sel = $("siteCible");
+
+  if (!$("multisite").classList.contains("cache") && sel.value) {
+    body.site = sel.value;
+    body.overrides = {
+      [sel.value]: {
+        host_address: $("siteAddr").value.trim(),
+        host_port: parseInt($("sitePort").value, 10) || 443
+      }
+    };
+    if ($("regenCert").checked) body.regen_cert = true;
+  }
+  return body;
+}
+
+// ======================================================================
 //  Telechargements
 // ======================================================================
 
@@ -133,7 +192,7 @@ async function telecharger(url, nomFichier) {
   const reponse = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ composants: choix })
+    body: JSON.stringify(corpsGeneration())
   });
 
   if (!reponse.ok) {
@@ -168,7 +227,7 @@ $("apercu").addEventListener("click", e =>
     const choix = selection();
     if (choix.length === 0) throw new Error("Selectionnez au moins un composant");
 
-    const yaml = await api("/api/compose", { composants: choix });
+    const yaml = await api("/api/compose", corpsGeneration());
     const pre = $("apercuCompose");
     pre.textContent = yaml;
     pre.classList.remove("cache");

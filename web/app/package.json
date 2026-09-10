@@ -2,8 +2,13 @@
   "name": "peaas-packager",
   "version": "1.0.0",
   "main": "server.js",
+  "scripts": {
+    "test": "node --test"
+  },
   "dependencies": {
+    "archiver": "^7.0.1",
     "express": "^4.19.2",
-    "archiver": "^7.0.1"
+    "js-yaml": "^4.3.2",
+    "node-forge": "^1.4.0"
   }
 }

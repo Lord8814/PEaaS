@@ -1,15 +1,32 @@
 const express = require("express");
 const archiver = require("archiver");
 const fs = require("fs");
+const yaml = require("js-yaml");
 const components = require("./components");
+const {
+  dockerSubnet,
+  validateTopology,
+  siteProfile,
+  renderSiteProfileYaml,
+  renderSiteEnv
+} = require("./multisite");
+const { issueSiteCert } = require("./certs");
 
 const app = express();
 app.use(express.json({ limit: "100kb" }));
 app.use(express.static("public"));
 
-const STACK = "/stack";
+const STACK = process.env.STACK_DIR || "/stack";
 const APISIX = process.env.APISIX_URL || "http://apisix:9080";
 const TIMEOUT = 5000;
+
+// Fichier de topologie inter-sites (dépôt PEaaSrepo, monté en lecture seule
+// via /stack). Surchargeable pour les tests / autres environnements.
+const TOPOLOGY_PATH =
+  process.env.TOPOLOGY_PATH || `${STACK}/PEaaSrepo/topology.yaml`;
+// Plage LAN attendue des VM hôtes : priorité à l'env, sinon au fichier de
+// topologie, sinon défaut du module. Jamais codée en dur ici.
+const HOST_LAN_CIDR = process.env.HOST_LAN_CIDR || null;
 
 // ======================================================================
 //  Utilitaires
@@ -68,9 +85,121 @@ function resoudreDependances(choix) {
   return [...resultat];
 }
 
-function genererCompose(choix) {
+// Ordre de demarrage : tri topologique du graphe `deps` de components.js
+// (les dependances avant leurs dependants). A egalite, PRIORITE_DEMARRAGE
+// tranche, pour un ordre stable et conforme a CLAUDE.md (§ Structure).
+// Ecrit dans l'archive (.peaas/start-order) pour qu'install.sh n'ait pas a
+// dupliquer la connaissance du catalogue.
+const PRIORITE_DEMARRAGE = [
+  "etcd", "apisix", "prometheus", "grafana",
+  "postgres", "pgadmin", "solace", "nodered1", "nodered2"
+];
+
+function ordreDemarrage(choix) {
+  const cible = new Set(choix);
+  const vus = new Set();
+  const ordre = [];
+  const visiter = c => {
+    if (vus.has(c) || !components[c]) return;
+    vus.add(c);
+    for (const dep of components[c].deps || []) visiter(dep);
+    if (cible.has(c)) ordre.push(c);
+  };
+  for (const c of [...PRIORITE_DEMARRAGE, ...Object.keys(components)]) {
+    if (cible.has(c)) visiter(c);
+  }
+  return ordre;
+}
+
+// `multisite` (optionnel) : quand vrai, le réseau `peaas` prend sa plage
+// depuis la variable PEAAS_DOCKER_SUBNET, définie dans le fichier `.env`
+// généré par site. Le docker-compose.yaml reste ainsi STRICTEMENT identique
+// quel que soit le site cible ; seul `.env` (et site-profile.yaml) varie.
+// Sans `multisite`, comportement historique (bridge, pas de plage imposée).
+function genererCompose(choix, multisite) {
   const services = choix.map(c => components[c].service).join("\n");
-  return `services:\n${services}\n\nnetworks:\n  peaas:\n    driver: bridge\n`;
+  let reseau = "networks:\n  peaas:\n    driver: bridge\n";
+  if (multisite) {
+    reseau +=
+      "    ipam:\n" +
+      "      config:\n" +
+      "        - subnet: ${PEAAS_DOCKER_SUBNET:?PEAAS_DOCKER_SUBNET manquant - fournir le fichier .env genere par le packager}\n";
+  }
+  return `services:\n${services}\n\n${reseau}`;
+}
+
+// ======================================================================
+//  Multi-site : chargement de la topologie et cible de génération
+// ======================================================================
+
+// Lit et parse topology.yaml à chaque appel (un simple fichier : pas de cache,
+// une édition dans le dépôt est prise en compte sans redémarrer le serveur).
+function chargerTopologie() {
+  let texte;
+  try {
+    texte = fs.readFileSync(TOPOLOGY_PATH, "utf8");
+  } catch {
+    throw new ErreurClient(
+      `Fichier de topologie introuvable (${TOPOLOGY_PATH}). ` +
+        `Renseignez-le dans PEaaSrepo/ ou définissez TOPOLOGY_PATH.`,
+      500
+    );
+  }
+  let doc;
+  try {
+    doc = yaml.load(texte);
+  } catch (e) {
+    throw new ErreurClient(`Topologie illisible : ${e.message}`, 500);
+  }
+  const lanCidr =
+    HOST_LAN_CIDR || (doc && doc.lan && doc.lan.expected_cidr) || undefined;
+  return { doc, lanCidr };
+}
+
+// Extrait et valide la cible de génération : { site, overrides }.
+// `site` absent -> génération mono-site historique.
+// `overrides` : { <id>: { host_address?, host_port? } } appliqué à CETTE
+// génération seulement (jamais réécrit dans le dépôt).
+function validerCibleSite(body) {
+  const site = body.site;
+  if (site == null || site === "") return { site: null, overrides: {} };
+  if (typeof site !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(site)) {
+    throw new ErreurClient("Champ 'site' invalide (slug attendu)");
+  }
+  const overrides = {};
+  if (body.overrides != null) {
+    if (typeof body.overrides !== "object" || Array.isArray(body.overrides)) {
+      throw new ErreurClient("Champ 'overrides' invalide (objet attendu)");
+    }
+    for (const [id, val] of Object.entries(body.overrides)) {
+      if (!val || typeof val !== "object") continue;
+      const o = {};
+      if (val.host_address != null) o.host_address = String(val.host_address).trim();
+      if (val.host_port != null) o.host_port = Number(val.host_port);
+      overrides[id] = o;
+    }
+  }
+  return { site, overrides };
+}
+
+function appliquerOverrides(doc, overrides) {
+  if (!overrides || !doc || !Array.isArray(doc.sites)) return;
+  for (const s of doc.sites) {
+    const o = overrides[s.id];
+    if (!o) continue;
+    if (o.host_address) s.host_address = o.host_address;
+    if (Number.isFinite(o.host_port)) s.host_port = o.host_port;
+  }
+}
+
+// Résout le profil du site cible (ou null si mono-site). Lève une erreur
+// explicite AVANT tout démarrage de flux si la topologie est invalide.
+function resoudreProfil(body) {
+  const { site, overrides } = validerCibleSite(body);
+  if (!site) return null;
+  const { doc, lanCidr } = chargerTopologie();
+  appliquerOverrides(doc, overrides);
+  return siteProfile(doc, site, { lanCidr });
 }
 
 // Appel HTTP avec timeout : sans cela une cible injoignable
@@ -118,13 +247,48 @@ app.get("/api/components", (req, res) => {
   res.json(components);
 });
 
+// Liste des sites de la topologie (pour le sélecteur de l'UI). Valide la
+// topologie au passage : une erreur ici signale un topology.yaml à corriger.
+app.get("/api/sites", asyncRoute(async (req, res) => {
+  const { doc, lanCidr } = chargerTopologie();
+  const topo = validateTopology(doc, { lanCidr });
+  res.json({
+    lan_cidr: topo.lanCidr,
+    docker_block: topo.dockerBlock,
+    next_index: topo.nextIndex,
+    sites: topo.sites.map(s => ({
+      id: s.id,
+      index: s.index,
+      host_address: s.host_address,
+      host_port: s.host_port,
+      docker_subnet: dockerSubnet(s.index),
+      dmr_node_name: s.role.dmr_node_name,
+      dmr_link_initiator: s.role.dmr_link_initiator
+    }))
+  });
+}));
+
 app.post("/api/compose", asyncRoute(async (req, res) => {
   const choix = validerSelection(req.body);
-  res.type("text/yaml").send(genererCompose(choix));
+  const profil = resoudreProfil(req.body);
+  res.type("text/yaml").send(genererCompose(choix, !!profil));
 }));
 
 app.post("/api/package", asyncRoute(async (req, res) => {
   const choix = validerSelection(req.body);
+
+  // Resoudre le profil de site AVANT d'ouvrir le flux : une topologie
+  // invalide doit remonter en JSON, pas couper une archive a moitie ecrite.
+  const profil = resoudreProfil(req.body);
+
+  // Materiel mTLS du site (cf. D-002). Emis/reutilise AVANT le flux pour
+  // qu'une erreur remonte en JSON. La CA de la federation n'est creee qu'au
+  // premier appel ; le certificat de site est reutilise s'il est encore
+  // valide, sauf flag explicite `regen_cert`.
+  let materielTls = null;
+  if (profil) {
+    materielTls = issueSiteCert(profil, { force: req.body.regen_cert === true });
+  }
 
   // Verifier les repertoires AVANT d'ouvrir le flux : une fois les
   // en-tetes envoyes, impossible de renvoyer une erreur JSON.
@@ -161,7 +325,38 @@ app.post("/api/package", asyncRoute(async (req, res) => {
   });
 
   archive.pipe(res);
-  archive.append(genererCompose(choix), { name: "docker-compose.yaml" });
+  archive.append(genererCompose(choix, !!profil), { name: "docker-compose.yaml" });
+
+  // Fichiers propres au site cible. Le docker-compose.yaml, lui, reste
+  // identique pour tous les sites.
+  //   - .env            : plage Docker, lue par `docker compose` au demarrage
+  //   - site-profile.yaml : identite reseau du site + vue du maillage complet
+  if (profil) {
+    archive.append(renderSiteEnv(profil), { name: ".env" });
+    archive.append(renderSiteProfileYaml(profil), { name: "site-profile.yaml" });
+
+    // Materiel mTLS. La cle privee de la CA n'y figure JAMAIS, seulement
+    // son certificat (partie publique) pour verifier les pairs.
+    archive.append(materielTls.keyPem, { name: "certs/site.key.pem", mode: 0o600 });
+    archive.append(materielTls.certPem, { name: "certs/site.crt.pem", mode: 0o644 });
+    archive.append(materielTls.caCertPem, {
+      name: "certs/federation-ca.crt.pem",
+      mode: 0o644
+    });
+
+    // Installation en une commande sur la VM cible.
+    archive.append(ordreDemarrage(choix).join("\n") + "\n", {
+      name: ".peaas/start-order"
+    });
+    archive.file(`${__dirname}/install.sh`, { name: "install.sh", mode: 0o755 });
+
+    // Scripts de configuration du socle neutre (federation DMR Solace).
+    // On versionne le script, jamais son resultat : install.sh le rejoue.
+    const scriptsDir = `${STACK}/PEaaSrepo/scripts`;
+    if (choix.includes("solace") && fs.existsSync(scriptsDir)) {
+      archive.directory(scriptsDir, "scripts");
+    }
+  }
 
   for (const cle of choix) {
     const dir = components[cle].dir;
@@ -325,4 +520,5 @@ process.on("uncaughtException", e => {
   process.exit(1);
 });
 
-app.listen(3001, () => console.log("Serveur sur le port 3001"));
+const PORT = Number(process.env.PORT) || 3001;
+app.listen(PORT, () => console.log(`Serveur sur le port ${PORT}`));

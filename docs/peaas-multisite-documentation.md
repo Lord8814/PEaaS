@@ -82,9 +82,11 @@ L'organisation retenue est un `docker-compose.yml` par composant, dans un dossie
 
 ### 3.2 Le générateur
 
-Une interface web liste les composants disponibles. On coche ce qu'on veut, on génère, on récupère une archive contenant le `docker-compose` correspondant à la sélection ainsi que les montages des conteneurs — donc les configurations et les données préexistantes.
+Une interface web liste les composants disponibles. On coche ce qu'on veut, on génère, on récupère une archive contenant le `docker-compose` correspondant à la sélection et tout ce qu'il faut pour que les composants démarrent configurés.
 
-C'est le point important, et celui qui distingue cet outil d'un simple script de déploiement : **l'archive ne contient pas des conteneurs vides, elle contient des conteneurs configurés.** On ne livre pas une infrastructure à paramétrer, on livre une plateforme qui fonctionne.
+Dans sa première version, le générateur obtenait ce résultat en **archivant les montages des conteneurs**, configurations et données préexistantes comprises. Cette approche a été abandonnée au profit du **versionnement** (décision D-009) : un conteneur configuré contient des traces de son environnement — l'adresse de ses pairs pour un broker, un état interne pour une base — et n'est donc pas transposable. Désormais, l'espace de travail contient d'un côté les conteneurs de développement et le générateur, de l'autre le dépôt versionné (`PEaaSrepo/`), qui ne contient que ce qui décrit : gabarits compose, fichiers de réglages, scripts de configuration. **L'archive est construite exclusivement depuis le dépôt**, jamais depuis les dossiers des conteneurs de travail.
+
+Le point important reste le même, et c'est celui qui distingue cet outil d'un simple script de déploiement : **la plateforme livrée n'est pas vide, elle démarre configurée.** Ce qui a changé, c'est le moyen : la configuration n'est plus copiée, elle est **rejouée** à l'installation par des scripts. On ne livre pas une infrastructure à paramétrer, on livre une plateforme qui fonctionne.
 
 ### 3.3 Ce qui manque
 
@@ -186,7 +188,7 @@ Trois affirmations distinctes, chacune avec sa preuve. Les tenir séparées est 
 
 *Le même artefact se déploie sans modification sur des infrastructures différentes.*
 
-**Preuve** : le contenu généré est identique sur les trois sites ; seul le fichier d'identité du site diffère.
+**Preuve** : le contenu généré est identique sur les trois sites ; seuls diffèrent les éléments d'identité du site — son profil (`site-profile.yaml`), son fichier d'environnement (plage réseau, nom de nœud, identifiants saisis à la génération) et ses certificats. La comparaison porte sur **toute l'archive**, pas seulement sur le compose : un volume de données embarqué par erreur invaliderait la preuve sans que le diff du compose le montre.
 
 **Ce qui la mettrait en échec** : devoir retoucher un `docker-compose` à la main parce qu'un site a une contrainte particulière.
 
@@ -227,6 +229,10 @@ Ce découpage à trois sites est le minimum utile. À deux, on démontre un lien
 Cette règle d'isolation n'est pas une contrainte de confort, c'est ce qui rend l'affirmation de portabilité vérifiable. Toute optimisation de voisinage — un raccourci par adresse locale, un volume partagé, une résolution de nom qui ne fonctionnerait qu'entre voisins, une hypothèse sur une horloge commune — serait une triche silencieuse : le montage fonctionnerait ici et échouerait au premier déploiement réel. Chaque site traite les deux autres comme des sites distants, sans exception, et les trois liens sont rigoureusement de même nature.
 
 **Comment la règle se vérifie** : déplacer une VM sur un autre réseau et constater que rien ne casse. À défaut, contrôler qu'aucune configuration générée ne contient d'adresse ou de nom qui ne serait valable que localement.
+
+La règle s'applique aussi au générateur lui-même. Le fichier de topologie ne décrit **aucun réseau commun** : chaque site déclare son propre réseau hôte, et la validation ne vérifie jamais qu'un site appartient au même réseau que les autres (décision D-012). Un générateur qui refuserait un site parce qu'il est ailleurs aurait inscrit la proximité dans le code.
+
+Même principe pour l'horloge : chaque VM se synchronise indépendamment sur une source de temps (NTP). Le TLS mutuel rend ce point concret — un certificat est jugé valide ou non selon l'heure de la machine qui le vérifie (décision D-017).
 
 **Une limite à assumer** : sur un réseau unique, les délais de transmission entre sites seront quasi nuls et ne diront rien d'un déploiement réparti. Les mesures de latence de la section 12 sont donc à interpréter comme des ordres de grandeur plancher, pas comme des valeurs représentatives.
 
@@ -367,6 +373,8 @@ Ce référentiel commun est nécessaire. Mais il est **consulté au déploiement
 
 La formule qui résume la position : **contrôle centralisé, données distribuées.** C'est un choix architectural assumé, pas un compromis subi.
 
+**Une nuance à assumer.** Pour propager une modification de topologie à un site déjà déployé, le mécanisme retenu est un **pull périodique** : chaque site va chercher sa configuration à jour dans le dépôt (décision D-016). Le référentiel est alors consulté pendant l'exécution, pas seulement au déploiement. La dépendance reste **non bloquante** — si le dépôt est injoignable, le site continue avec sa configuration courante et seule la mise à jour est différée — mais la formule « jamais à l'exécution » doit se lire ainsi : jamais sur le chemin des données, jamais comme condition de fonctionnement.
+
 ### 9.3 La limite : le nombre de liens
 
 Un maillage complet compte N(N−1)/2 liens : 3 pour trois sites, 45 pour dix, 190 pour vingt. Chaque nouveau site oblige à reconfigurer tous les autres.
@@ -404,11 +412,17 @@ C'est ce fichier — et lui seul — qui diffère d'un site à l'autre. Le reste
 
 **Un point de vigilance immédiat** : les trois VM partagent un réseau. Leurs réseaux Docker prendront par défaut la même plage d'adresses, et le routage deviendra imprévisible — un conflit d'autant plus vicieux qu'il ne se manifeste pas toujours immédiatement. Le plan d'adressage doit être figé avant la première génération, avec une plage distincte par site, réseaux Docker inclus. C'est trois lignes maintenant et une soirée perdue plus tard.
 
+La plage de chaque site est dérivée de son index (`10.90.<index>.0/24`, décision D-005). Le générateur vérifie deux choses, et seulement celles-là : que la plage Docker d'un site ne chevauche pas son propre réseau hôte, et qu'elle ne recouvre l'adresse d'**aucun pair**. La seconde vérification n'est pas une optimisation de voisinage : un site doit pouvoir joindre ses pairs, et une plage Docker qui recouvrirait l'adresse d'un pair capturerait ce trafic localement, quel que soit l'endroit où se trouve ce pair.
+
 ### 10.3 Les certificats
 
 Le générateur crée les certificats nécessaires au TLS mutuel : une autorité pour la fédération, un certificat par site.
 
 Cela suppose qu'il assume un rôle d'autorité de certification. C'est cohérent avec sa position de plan de contrôle, mais cela implique deux exigences : les clés privées ne doivent jamais se retrouver dans une archive destinée à un autre site, et l'archive contenant une clé privée doit être traitée comme un secret.
+
+Chaque certificat de site porte dans ses noms alternatifs (SAN) **à la fois** son nom DNS et son adresse IP déclarée dans la topologie (décision D-013). Le nom seul obligerait à le rendre résoluble — et la tentation serait de l'ajouter dans le fichier `hosts` des VM, ce qui est précisément une résolution de nom valable seulement entre voisins. L'IP seule empêcherait l'aiguillage par nom de destination envisagé en section 8.5. Un changement d'adresse entraîne une réémission du certificat, ce qui ne crée pas d'opération nouvelle puisqu'il entraîne déjà une régénération du profil.
+
+Pour le PoC, la clé privée de l'autorité n'est pas chiffrée au repos : elle est protégée par les droits du système de fichiers et stockée hors du dépôt (décision D-014). C'est une limite assumée et documentée ; en production, elle devrait être protégée par une phrase secrète ou un module matériel.
 
 ### 10.4 Le script d'installation
 
@@ -424,7 +438,17 @@ Conformément au principe de la section 5, l'archive contient la configuration f
 
 Une remarque de méthode, importante pour la suite. Solace ne se configure pas par fichiers : sa configuration vit dans une base interne. Il serait tentant de figer un conteneur déjà configuré et de le stocker tel quel. C'est à éviter — un broker configuré contient l'adresse de ses pairs, il n'est donc plus portable, et l'on retomberait sur trois artefacts distincts au lieu d'un seul. La bonne approche est de **stocker le script de configuration, pas son résultat** : les appels à l'API d'administration du broker, rejoués au démarrage, avec les pairs injectés depuis le profil de site.
 
-Le principe vaut au-delà de Solace : on version ce qui décrit, jamais ce qui a été produit.
+Le principe vaut au-delà de Solace : on version ce qui décrit, jamais ce qui a été produit. Appliqué composant par composant (décision D-010) :
+
+| Composant | Ce qui est versionné | Comment la configuration est appliquée |
+|---|---|---|
+| Solace | Script d'appels SEMPv2 | Rejoué au démarrage, pairs injectés depuis le profil |
+| APISIX | Script d'appels à l'Admin API | Rejoué au démarrage ; etcd reste un stockage produit, jamais archivé |
+| Node-RED | Fichier de flows (gabarit) | Monté au premier démarrage |
+| PostgreSQL | Scripts SQL d'initialisation | Exécutés à la création de la base |
+| pgAdmin, Grafana, Prometheus | Fichiers de réglages (gabarits) | Montés au démarrage |
+
+Aucun répertoire de données (`data/`) n'entre dans l'archive.
 
 ### 10.6 Le catalogue de produits et son stockage
 
@@ -458,7 +482,9 @@ Deux règles s'appliquent à tout ce qui entre dans le dépôt.
 
 **On version ce qui décrit, jamais ce qui a été produit.** Les scripts de configuration vont dans le dépôt ; les conteneurs déjà configurés, non. Un broker configuré contient l'adresse de ses pairs : il n'est donc plus transposable ailleurs, et le stocker reviendrait à fabriquer autant d'artefacts que de sites au lieu d'un seul.
 
-**Aucun secret dans le dépôt.** Les certificats sont générés au moment du déploiement, les identifiants passent par des variables d'environnement. Un secret commité reste dans l'historique.
+**Aucun secret dans le dépôt.** Les certificats sont générés au moment du déploiement. Les identifiants n'ont **aucune valeur par défaut** : quand un composant sélectionné en requiert, l'interface invite à les saisir au moment de la génération, et ils sont écrits dans le fichier d'environnement de l'archive (décision D-011). Une génération à laquelle il manque un identifiant échoue. Un secret commité reste dans l'historique ; un secret par défaut est un secret public.
+
+Les interfaces d'administration qui n'ont pas vocation à être jointes depuis un autre site — l'API de gestion du broker, l'Admin API d'APISIX, etcd — ne sont exposées que sur l'hôte local (décision D-018). Seuls les flux de la section 8.1 sont ouverts vers l'extérieur.
 
 Deux points de conception complémentaires :
 
@@ -523,6 +549,11 @@ La troisième est celle qui répond le plus directement à la problématique, et
 | **Arrêts des VM** | Désynchronisation des sites. | Traité par les queues persistantes. Devient un atout de démonstration plutôt qu'un problème. |
 | **Certificats et secrets dans les archives** | Fuite de clés privées si une archive est partagée. | Une clé privée par site, jamais dans l'archive d'un autre. Aucun secret dans un dépôt de code. |
 | **Échec de la démonstration en direct** | Perte de l'effet. | Vidéo enregistrée en amont. |
+| **Identifiants dans l'archive** | L'archive d'un site contient ses mots de passe d'administration. | Fichier d'environnement en droits restreints, archive traitée comme un secret, aucune valeur par défaut. |
+| **Interface d'administration exposée** | N'importe quel poste du réseau pourrait reconfigurer la fédération. | Interfaces d'administration liées à l'hôte local (D-018). |
+| **Dérive d'horloge** | Erreurs TLS incompréhensibles, typiquement après restauration d'un instantané de VM. | Synchronisation NTP indépendante par site, vérifiée par le script d'installation. |
+| **Générateur modifié entre deux mesures** | La courbe de l'affirmation 2 mélange le gain de la réplication et celui des corrections. | Générateur figé avant le site A, version inscrite dans chaque archive et dans le journal des mesures (D-015). |
+| **Tests qui valident leurs propres hypothèses** | Des tests en simulation passent alors que le broker refuse la configuration. | Tests unitaires présentés comme garantie du générateur, test d'intégration contre un vrai broker comme preuve de fonctionnement. |
 
 ---
 
@@ -530,9 +561,13 @@ La troisième est celle qui répond le plus directement à la problématique, et
 
 **Édition du catalogue depuis l'interface web.** Le stockage en dépôt Git étant retenu, l'ajout d'un produit ou d'un script se fait par fichier. Reste à décider si l'interface web doit à terme proposer une édition assistée — un formulaire qui produit le fichier et le pousse — ou si l'édition directe suffit.
 
-**Mise en place du dépôt.** Il n'en existe pas aujourd'hui. Sa création est le préalable à la mise en œuvre de la section 10, et donc la toute première action du chantier.
+*(Mise en place et structure du dépôt : tranchées. Le dépôt `PEaaSrepo/` existe, séparé des conteneurs de travail et du code du générateur ; catalogue en YAML, un fichier par produit.)*
 
-**Structure du dépôt.** Un dépôt unique regroupant catalogue, topologie et scripts, ou une séparation entre le code du générateur et son contenu. La seconde option est plus propre mais ajoute une dépendance à gérer.
+**Port d'interconnexion.** Les ports des liens entre sites sont portés par le catalogue. Le passage sur le 443 via le point d'entrée unique reste conditionné à la vérification de l'aiguillage TCP d'APISIX ; en attendant, les liens utilisent leurs ports propres, par choix et non par oubli.
+
+**Mise à jour de topologie et règle de versionnement.** Le pull périodique est retenu (D-016). Reste à décider ce que le site récupère : son profil déjà dérivé — qui est un produit, donc en tension avec la règle de la section 10.7 — ou la topologie, à partir de laquelle il dérive lui-même son profil, ce qui suppose d'embarquer une partie du générateur sur chaque site. L'accès au dépôt depuis chaque site constitue en outre un identifiant supplémentaire à gérer.
+
+**Rotation des certificats.** Le générateur réémet un certificat proche de l'expiration, mais rien ne le redéploie sur un site en service.
 
 **Aiguillage TCP par APISIX.** Voir section 8.5 : la capacité de la version retenue d'APISIX à aiguiller une connexion TCP sur son nom de destination, sans déchiffrer, doit être confirmée avant de s'engager sur le point d'entrée unique.
 

@@ -24,7 +24,10 @@ services:
     environment:
       username_admin_globalaccesslevel: admin
       username_admin_password: admin
-      system_scaling_maxconnectioncount: "100"
+      # >= 1000 obligatoire : en deçà, le broker refuse la fédération DMR
+      # ("dynamic-message-routing is not supported ... limit for connections is 100").
+      # Établi par le test d'intégration (tâche 1, lot correctif 10/09).
+      system_scaling_maxconnectioncount: "1000"
     volumes:
       - /mnt/solace/data:/var/lib/solace
     ports:

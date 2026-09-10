@@ -111,6 +111,9 @@ module.exports = {
       username_admin_globalaccesslevel: admin
       username_admin_password: admin
       system_scaling_maxconnectioncount: "100"
+      # Nom de noeud DMR, unique par site (valeur dans .env, cf. solace-dmr.sh).
+      # Mono-site sans .env : "solace" (nom stable par defaut).
+      routername: \${SITE_DMR_NODE_NAME:-solace}
     volumes:
       - ./solace/data:/var/lib/solace
     ports:

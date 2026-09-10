@@ -1,5 +1,9 @@
 */data/
 
+# Sorties de génération (propres à un site + un run, jamais versionnées)
+peaas-package.tar.gz
+site-profile.yaml
+
 # Secrets
 **/.env
 *.pem
@@ -8,3 +12,12 @@
 *.p12
 .claude/settings.local.json
 web/app/node_modules/
+
+# Magasin de secrets du générateur : CA de la fédération + clés/certs de site.
+# Hors dépôt, jamais versionné (cf. D-002). Repointable par PEAAS_CA_DIR.
+web/app/ca-store/
+certs/
+
+# Sorties d'install.sh sur la VM cible (dans l'archive extraite, jamais ici)
+docker-compose.override.yml
+*/tls/
