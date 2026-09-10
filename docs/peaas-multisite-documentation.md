@@ -196,7 +196,7 @@ Trois affirmations distinctes, chacune avec sa preuve. Les tenir séparées est 
 
 *Le premier site coûte des jours, le troisième coûte des minutes.*
 
-**Preuve** : le temps de mise en place de chaque site, décomposé en génération, transfert, déploiement, vérification.
+**Preuve** : le temps de mise en place de chaque site, décomposé en génération, transfert, déploiement, vérification. La mesure commence sur une **machine conforme au contrat de la section 7.2** : la préparation de la machine est un coût d'infrastructure, hors problématique. Elle est chronométrée une fois, à titre d'information, pour pouvoir en donner l'ordre de grandeur.
 
 **Point critique** : cette mesure doit être relevée **dès le premier site**. Sans point de départ, il n'y a pas de courbe, et l'affirmation reste une opinion. C'est l'erreur la plus facile à commettre et la plus coûteuse.
 
@@ -236,7 +236,30 @@ Même principe pour l'horloge : chaque VM se synchronise indépendamment sur une
 
 **Une limite à assumer** : sur un réseau unique, les délais de transmission entre sites seront quasi nuls et ne diront rien d'un déploiement réparti. Les mesures de latence de la section 12 sont donc à interpréter comme des ordres de grandeur plancher, pas comme des valeurs représentatives.
 
-### 7.2 Composition des sites
+### 7.2 L'infrastructure hôte : un contrat, pas un livrable
+
+Le projet n'est pas responsable de l'infrastructure sur laquelle le package est déployé (décision D-019). En entreprise, la machine est fournie par une autre équipe ou par une image standard ; la plateforme d'échange commence là où la machine s'arrête. C'est aussi ce que dit la problématique, qui porte sur le coût d'une plateforme, pas sur celui d'un serveur.
+
+Pour que cette frontière soit vérifiable, elle prend la forme d'un **contrat de machine hôte** : le package s'installe sur toute machine qui le respecte, quelle que soit la façon dont elle a été préparée — à la main en suivant un manuel, depuis une VM prête à l'emploi, ou par tout autre moyen.
+
+| Clause | Exigence | Vérifiée par `install.sh` |
+|---|---|---|
+| Système | Debian stable, sans interface graphique | Oui |
+| Conteneurs | Docker Engine et Compose v2, démon actif | Oui (bloquant) |
+| Adresse | Adresse IP fixe, présente sur une interface, égale à `host_address` de la topologie | Oui (bloquant) |
+| Horloge | Synchronisée sur une source de temps, indépendamment des autres sites | Oui (avertissement) |
+| Ressources | Au moins 4 vCPU, 8 Go de mémoire, 20 Go de disque ; mémoire suffisante pour les composants sélectionnés | Oui (bloquant pour la mémoire) |
+| Ports | Ports inter-sites déclarés au catalogue ouverts en entrée | Non — vérifié en phase 0 depuis les pairs |
+| Machine dédiée | Aucun conteneur ni réseau Docker en conflit de nom avec le socle, hors réinstallation | Oui (bloquant) |
+| Isolation | Aucune entrée `hosts` vers un autre site, aucun montage partagé, aucune configuration faisant référence aux autres machines | Non — contrôle de relecture |
+
+Le package ne répare rien sur la machine : il détecte tout ce qui le ferait échouer et refuse de s'installer en nommant la clause non respectée.
+
+La dernière clause est la plus importante. Une préparation manuelle est précisément l'endroit où une optimisation de voisinage s'introduit sans que personne la remarque ; la règle d'isolation s'applique donc à la préparation de la machine comme au contenu du package.
+
+Un manuel de préparation, puis une VM prête à l'emploi, sont des livrables **bonus**, à produire si le temps le permet. Ils satisfont le contrat ; ils n'en font pas partie.
+
+### 7.3 Composition des sites
 
 Les trois sites n'hébergent pas la même sélection de composants. C'est délibéré : si les trois sites étaient identiques, on ne démontrerait que la copie. En les différenciant, on démontre que **des plateformes composées différemment peuvent tout de même dialoguer**, ce qui est la promesse réelle du générateur.
 
@@ -249,7 +272,7 @@ Autres partis pris :
 - **Prometheus et Grafana disponibles au catalogue**, inclus dans l'archive si l'utilisateur les sélectionne, mais non imposés.
 - **pgAdmin conditionnel** : proposé uniquement si PostgreSQL a été retenu, comme c'est déjà le cas dans le fonctionnement actuel.
 
-### 7.3 Les données
+### 7.4 Les données
 
 **Chaque site est propriétaire de ses données.** Les bases PostgreSQL sont isolées, sans réplication entre sites.
 
@@ -257,7 +280,7 @@ C'est un choix assumé. L'alternative — répliquer partout ce qui est publié 
 
 En revanche, une plateforme peut **consulter** la base d'une autre : pgAdmin d'un site permet de se connecter au PostgreSQL d'un autre site. La donnée ne bouge pas, l'accès traverse. C'est cohérent avec le principe : on fédère les accès, pas les données.
 
-### 7.4 Persistance des messages
+### 7.5 Persistance des messages
 
 Les queues Solace sont **persistantes**.
 
@@ -317,7 +340,7 @@ Le producteur ne sait toujours rien de personne. C'est exactement le principe de
 Deux propriétés importantes du DMR pour ce montage :
 
 - **Un lien DMR est une connexion TCP persistante, bidirectionnelle une fois établie.** Un seul côté l'ouvre, et le trafic circule ensuite dans les deux sens. Un broker derrière un NAT reçoit donc parfaitement des messages venus de l'extérieur, alors qu'il est injoignable en entrée. Le NAT ne gêne pas le messaging.
-- **Le DMR ne propage que vers les sites où il existe un abonné.** Cette propriété n'est pas exploitée dans le PoC — tous les sites voient les mêmes topics — mais elle est le fondement de l'évolution décrite en section 12.1.
+- **Le DMR ne propage que vers les sites où il existe un abonné.** Cette propriété n'est pas exploitée dans le PoC — tous les sites voient les mêmes topics — mais elle est le fondement de l'évolution décrite en section 15.1.
 
 Le trafic entre brokers est chiffré en TLS.
 
@@ -428,7 +451,7 @@ Pour le PoC, la clé privée de l'autorité n'est pas chiffrée au repos : elle 
 
 L'archive doit contenir un script qui prépare tout : arborescence, droits sur les fichiers montés, réseau Docker externe, ordre de démarrage des composants, application de la configuration.
 
-L'objectif est explicite : **une seule commande entre la réception de l'archive et une plateforme fonctionnelle.** C'est la mesure concrète de l'affirmation 2 — le temps de mise en place devient le temps d'exécution d'un script.
+L'objectif est explicite : **une seule commande entre la réception de l'archive et une plateforme fonctionnelle**, sur une machine conforme au contrat de la section 7.2. Le script commence par vérifier ce contrat et s'arrête, avec un message nommant la clause, si la machine ne le respecte pas. C'est la mesure concrète de l'affirmation 2 — le temps de mise en place devient le temps d'exécution d'un script.
 
 C'est aussi ce qui distingue la démarche d'un simple `docker compose up` : les droits sur les volumes montés, l'ordre de démarrage, l'injection de la configuration sont exactement les points où un déploiement manuel se plante et prend une demi-journée.
 
@@ -549,6 +572,8 @@ La troisième est celle qui répond le plus directement à la problématique, et
 | **Arrêts des VM** | Désynchronisation des sites. | Traité par les queues persistantes. Devient un atout de démonstration plutôt qu'un problème. |
 | **Certificats et secrets dans les archives** | Fuite de clés privées si une archive est partagée. | Une clé privée par site, jamais dans l'archive d'un autre. Aucun secret dans un dépôt de code. |
 | **Échec de la démonstration en direct** | Perte de l'effet. | Vidéo enregistrée en amont. |
+| **Machine hôte non conforme** | Échec d'installation difficile à diagnostiquer (certificat, mémoire, horloge). | Contrat de machine hôte vérifié par `install.sh`, arrêt nommant la clause (D-019). |
+| **Préparation manuelle introduisant une dépendance de voisinage** | Le PoC fonctionne pour une raison qui n'existera pas en déploiement réel. | Clause d'isolation du contrat, contrôle de relecture des machines. |
 | **Identifiants dans l'archive** | L'archive d'un site contient ses mots de passe d'administration. | Fichier d'environnement en droits restreints, archive traitée comme un secret, aucune valeur par défaut. |
 | **Interface d'administration exposée** | N'importe quel poste du réseau pourrait reconfigurer la fédération. | Interfaces d'administration liées à l'hôte local (D-018). |
 | **Dérive d'horloge** | Erreurs TLS incompréhensibles, typiquement après restauration d'un instantané de VM. | Synchronisation NTP indépendante par site, vérifiée par le script d'installation. |
@@ -573,7 +598,7 @@ La troisième est celle qui répond le plus directement à la problématique, et
 
 **Écriture des scripts de cas d'usage.** Assurée par l'équipe projet pour le PoC. La question de l'ouverture à des équipes métier reste à trancher, et elle conditionne le format des scripts.
 
-**Hébergement des trois VM.** Le montage exige une VM par site, aucune ne partageant un hôte avec une autre. Le support retenu reste à arrêter.
+**Hébergement des trois VM.** Le montage exige une VM par site, aucune ne partageant un hôte avec une autre. Le support retenu reste à arrêter ; il est hors du périmètre du package (D-019), mais conditionne la phase 0.
 
 ---
 

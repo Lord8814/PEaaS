@@ -18,13 +18,7 @@ Format : date, décision, raison, alternatives écartées, statut.
 **Décision.** Catalogue de produits, fichier de topologie et scripts de configuration stockés dans un dépôt Git, un fichier par produit.
 **Raison.** Historique, relecture, retour arrière et sauvegarde obtenus sans développement. Un script de configuration est du code.
 **Écarté.** Base orientée documents dédiée (composant supplémentaire à maintenir). PostgreSQL du socle (dépendance circulaire : composant déployé par le générateur).
-**Statut.** Retenu, **précisé (tâche 4, 10/09)** : **un dossier par produit,
-contenant son entrée et ses gabarits** — `PEaaSrepo/catalogue/<nom>/produit.yaml`
-avec, dans le même dossier, les gabarits `fichiers_config` du produit. La forme
-« un fichier `catalogue/<nom>.yaml` à plat » de la rédaction initiale est
-abandonnée : le générateur a besoin des gabarits (jamais commités jusque-là), les
-loger à côté de l'entrée évite un second arbre à tenir cohérent. CLAUDE.md
-§Contraintes ajusté ; la doc de référence (§ dépôt) reste à réaligner.
+**Statut.** Retenu. Précisé le 10/09 : un dossier par produit (`catalogue/<produit>/`), contenant son entrée `produit.yaml` et ses gabarits. Un site ne reçoit que son archive ; il n'a ni copie ni accès au dépôt pour se déployer.
 
 ---
 
@@ -75,24 +69,7 @@ loger à côté de l'entrée évite un second arbre à tenir cohérent. CLAUDE.m
 ## D-008 — Fédération DMR rejouable
 **Décision.** La configuration DMR de Solace est produite par des appels SEMPv2 idempotents, rejoués à l'installation à partir du profil de site. Pour chaque couple de sites, le site d'index le plus bas initie le lien ; l'autre le déclare en attente.
 **Raison.** On versionne le script, pas le broker configuré.
-**Statut.** Retenu. Payloads SEMPv2 validés le 10/09 contre un vrai broker
-(soltr 10.26, `solace-dmr.test.js` sous `PEAAS_SOLACE_IT=1`) : schéma des objets
-DMR externes confirmé, `initiator` `local`/`remote` conforme, rejeu idempotent,
-`transportTlsEnabled: true` ajouté au lien pour l'auth par certificat client.
-Reste non vérifié : lien à l'état *actif* en mTLS (exige deux brokers).
-**Amendé (tâche 2, point 2).** Le nom du cluster DMR est une propriété de la
-**fédération**, pas du catalogue ni d'un site : champ `federation.dmr_cluster_name`
-de `topology.yaml`, recopié tel quel dans chaque `site-profile.yaml`, lu par
-`solace-dmr.sh` (fin de la variable d'environnement `SOLACE_DMR_CLUSTER` et de
-toute valeur par défaut câblée dans le script). La cohérence du nom entre sites
-est ainsi garantie par construction.
-**Amendé (tâche 3).** Le rejeu **réconcilie** la liste connect-via
-(`remoteAddresses`) de chaque lien avec le profil : POST de l'adresse voulue
-(rejeu → `ALREADY_EXISTS`, ok) **et** DELETE de toute autre adresse encore
-présente (pair qui a changé d'IP, ou ancien rôle). Fait lien désactivé (le
-broker refuse cette modification sur un lien actif). Vérifié contre un vrai
-broker : `solace-dmr.test.js` sous `PEAAS_SOLACE_IT=1` rejoue avec un pair
-d'IP modifiée et relit la liste.
+**Statut.** Retenu. Payloads à valider contre un vrai broker.
 
 ---
 
@@ -100,38 +77,9 @@ d'IP modifiée et relit la liste.
 **Date.** 10/09/2026
 **Décision.** L'archive est construite exclusivement depuis le dépôt `PEaaSrepo/` et le catalogue. Les dossiers des conteneurs de travail et leurs répertoires `data/` n'y entrent jamais. Ce qui varie d'un site à l'autre se limite à son identité : `site-profile.yaml`, `.env`, `certs/`.
 **Raison.** Un conteneur configuré porte les traces de son environnement (adresses des pairs, état interne) : il n'est pas portable. L'archivage invalidait l'affirmation 1 sans que le diff du compose le montre.
-**Nommage.** Les noms déjà utilisés par le socle livré font référence : réseau externe `peaas`, noms de composants et de conteneurs tels qu'employés par `install.sh`, le `.env`, `solace-dmr.sh` et D-005 à D-008. Le catalogue s'aligne sur eux (`peaas-net` → `peaas`, etc.). Le catalogue est la source de vérité **pour la suite** ; son contenu actuel n'avait jamais été branché et ne fait pas autorité.
+**Nommage.** Les noms déjà utilisés par le socle livré font référence : réseau externe `peaas`, noms de composants et de conteneurs tels qu'employés par `install.sh`, le `.env`, `solace-dmr.sh` et D-005 à D-008. Le catalogue s'aligne sur eux (`peaas-net` → `peaas`, etc.). Le service Node-RED conserve le nom `nodered1` du socle livré ; il n'existe qu'une instance par site (doc 7.3), `nodered2` est retiré du générateur. Le catalogue est la source de vérité **pour la suite** ; son contenu actuel n'avait jamais été branché et ne fait pas autorité.
 **Écarté.** Conserver l'archivage en filtrant les données (filtrage fragile, et la configuration Solace vit de toute façon dans ses données). Renommer le socle livré vers les noms du catalogue (modification transverse sans gain, casse D-005/D-007/D-008).
 **Statut.** Retenu. Remplace la description de la section 3.2 d'origine.
-**Implémenté (tâche 4, 10/09).**
-- Catalogue restructuré : `catalogue/<nom>/produit.yaml` + gabarits dans le même
-  dossier (au lieu de `catalogue/<nom>.yaml` à plat). CLAUDE.md §Contraintes ajusté
-  en conséquence.
-- Nouveau module `web/app/catalogue.js` (lecture + validation, testable seul).
-  `web/app/components.js` **supprimé** ; plus aucune liste de composants en dur.
-- `server.js` : `/api/components`, résolution des dépendances (`depend_de`),
-  génération du compose (blocs `compose:` du catalogue réindentés), ordre de
-  démarrage (`ordre_demarrage`) et assemblage de l'archive proviennent tous du
-  catalogue. L'archive ne contient que : `docker-compose.yaml` assemblé, `.env`,
-  `site-profile.yaml`, `certs/`, `install.sh`, `.peaas/start-order`, les gabarits
-  `fichiers_config` du dépôt, les `scripts/` si un produit retenu a un
-  `script_setup`, et un marqueur `<comp>/.peaas-component` pour les composants sans
-  gabarit (contrat `[ -d ]` d'`install.sh`). **Aucun `data/`, rien des dossiers de
-  travail.**
-- Noms alignés sur le socle livré : réseau `peaas` (plus `peaas-net`),
-  `container_name` sans préfixe `peaas-`, disposition des volumes du socle.
-- Test remplacé : « diff du compose identique » → **diff de la totalité de deux
-  archives de sites** ; seuls `site-profile.yaml`, `.env`, `certs/` diffèrent.
-  Nouveau `catalogue.test.js`. Test « produit fictif » : un YAML ajouté au
-  catalogue apparaît dans `/api/components` et dans l'archive sans toucher au code.
-- **nodered1** : le socle neutre fournit **une seule** instance Node-RED
-  (`nodered2`, démo round-robin, retiré du générateur et d'`install.sh`). Ses
-  trois gabarits sont neutres et sans secret : `settings.js` réécrit sans
-  `credentialSecret` ni `adminAuth` en dur (Node-RED génère sa clé au premier
-  démarrage, dans `data/`) ; `flows.json` = `[]` ; `package.json` sans
-  dépendance. Les flux de démonstration (`GetNameData`, `PostNameData`,
-  `EnvoieMQTT`, `PostDB`, `SearchDB+MQTT`) et les contribs `postgresql` / `loop`
-  relèvent d'un **cas d'usage métier** : signalés, non intégrés au socle.
 
 ---
 
@@ -140,11 +88,16 @@ d'IP modifiée et relit la liste.
 **Décision.** APISIX est configuré par un script d'appels à l'Admin API, etcd étant conservé comme stockage produit et jamais archivé. Node-RED reçoit un fichier de flows versionné, PostgreSQL des scripts SQL d'initialisation, les autres composants des fichiers de réglages en gabarit.
 **Raison.** Même logique que D-008, appliquée partout.
 **Écarté.** APISIX en mode autonome à fichier YAML : supprime etcd et simplifie, mais change la composition du socle en cours de chantier. À reconsidérer si le rejeu Admin API pose problème.
-**Statut.** Retenu. **Amorcé (tâche 4)** : le champ `script_setup` est porté par
-chaque `produit.yaml` et le générateur inclut `PEaaSrepo/scripts/` dans l'archive
-dès qu'un produit retenu en déclare un. Seul `solace-dmr.sh` a un corps
-aujourd'hui ; `apisix.sh` (route de santé neutre) et `postgres.sh` (schéma SQL
-neutre) sont référencés mais restent à écrire — tâche 5.
+**Statut.** Retenu, **implémenté (tâche 5, 10/09)**. Chaque produit du catalogue
+porte `script_setup` ; le générateur émet `.peaas/setup-scripts` (`<composant>\t<script>`)
+et `install.sh` le rejoue après démarrage (étape 7), non bloquant et rejouable.
+Scripts neutres : `apisix.sh` (route `/peaas/health`, plugin `echo`, PUT idempotent),
+`postgres.sh` (schéma `peaas` + table marqueur, `IF NOT EXISTS` / `ON CONFLICT`),
+`solace-dmr.sh` (fédération DMR, D-008). Node-RED : `flows.json` neutre monté au
+premier démarrage. Grafana : source Prometheus provisionnée (gabarit sans
+identifiant). etcd n'est jamais archivé. La clé Admin API vient de `.env`
+(`APISIX_ADMIN_KEY`) — câblage `.env` = tâche 6 ; sans elle `apisix.sh` avertit
+et sort en 0.
 
 ---
 
@@ -160,13 +113,7 @@ neutre) sont référencés mais restent à écrire — tâche 5.
 **Date.** 10/09/2026
 **Décision.** Suppression de `lan.expected_cidr` et de `HOST_LAN_CIDR`. Chaque site déclare son propre réseau hôte. La validation vérifie que la plage Docker d'un site ne chevauche ni son réseau hôte, ni l'adresse d'un pair.
 **Raison.** Refuser un site parce qu'il n'est pas sur le même réseau que les autres inscrit la proximité dans le code, en contradiction avec la règle d'isolation.
-**Statut.** Retenu, **implémenté (tâche 2, 10/09)**. Champ `host_cidr` par site dans `topology.yaml`. Règles de validation (`web/app/multisite.js`, `multisite.test.js`) :
-- `host_address` du site contenue dans **son propre** `host_cidr` ;
-- `host_cidr` du site sans chevauchement avec le bloc Docker réservé `10.90.0.0/16` ;
-- plage Docker du site (`10.90.<index>.0/24`) sans chevauchement avec son propre `host_cidr` ;
-- plage Docker d'un site ne contenant l'`host_address` d'**aucun pair** (seule garde inter-sites) ;
-- règles D-005 inchangées (index unique, jamais réattribué, historique).
-Aucune règle ne compare le réseau d'un site à celui d'un autre. `site-profile.yaml` porte désormais `site.host_cidr` et n'a plus de `lan_cidr`.
+**Statut.** Retenu.
 
 ---
 
@@ -174,11 +121,7 @@ Aucune règle ne compare le réseau d'un site à celui d'un autre. `site-profile
 **Date.** 10/09/2026
 **Décision.** Le certificat d'un site porte son nom DNS, son nom de nœud DMR et son adresse IP déclarée. Il est réémis si ses SAN ne correspondent plus à la topologie.
 **Raison.** Le DNS seul pousse à ajouter des entrées `hosts` locales ; l'IP seule interdit l'aiguillage par SNI envisagé en 8.5.
-**Statut.** Retenu, **implémenté (tâche 3, 10/09)** dans `web/app/certs.js` (`certs.test.js`).
-- `subjectAltName` = `{DNS: id de site, DNS: dmr_node_name, IP: host_address}`, trié/dédoublonné. `host_address` absent ou non IPv4 → pas d'entrée IP (les tests hors topologie restent stables).
-- Conditions de réémission : certificat absent / illisible / à moins de 30 j / signé par une autre CA / **SAN différents de ceux voulus par le profil** / `--force`. Sinon le certificat en place est renvoyé à l'octet près.
-- Un changement d'IP (ou de nom) dans `topology.yaml` produit donc un nouveau certificat (sérial neuf) au prochain `/api/package`.
-- Aucune entrée `/etc/hosts` / `extra_hosts` / `--add-host` nulle part : le code n'en a jamais posé, rien à retirer.
+**Statut.** Retenu.
 
 ---
 
@@ -219,6 +162,16 @@ Aucune règle ne compare le réseau d'un site à celui d'un autre. `site-profile
 **Décision.** API de gestion Solace (SEMP), Admin API d'APISIX et etcd publiés sur `127.0.0.1` uniquement. Seuls les flux inter-sites de la section 8.1 sont exposés.
 **Raison.** Les scripts de configuration s'exécutent sur l'hôte ; aucun site n'a besoin d'administrer un autre.
 **Statut.** Retenu.
+
+---
+
+## D-019 — L'infrastructure hôte est hors périmètre, définie par un contrat
+**Date.** 10/09/2026
+**Décision.** Le projet ne livre pas la machine. Il définit un contrat de machine hôte (documentation, section 7.2) ; le package s'installe sur toute machine conforme. `install.sh` vérifie les clauses vérifiables et s'arrête en nommant la clause manquante. Le manuel de préparation et la VM prête à l'emploi sont des livrables bonus.
+**Raison.** La problématique porte sur le coût d'une plateforme d'échange, pas sur celui d'une machine ; en entreprise, la machine est fournie par ailleurs. Définir la frontière par un contrat plutôt que par « la VM est faite à la main » rend l'affirmation 1 plus forte : l'artefact ne dépend que du contrat.
+**Conséquence sur la mesure.** Le chronométrage de l'affirmation 2 commence sur une machine conforme. La préparation est chronométrée une fois, à titre d'information.
+**Écarté.** Automatiser la préparation des VM dans le périmètre principal (hors problématique, et dépendant de l'hébergement).
+**Statut.** Retenu. La bascule IP statique (ancienne tâche A) quitte définitivement les tâches du générateur.
 
 ---
 

@@ -18,10 +18,13 @@
 #     5. demarre les composants dans l'ordre de dependance
 #        (.peaas/start-order, sinon ordre de reference ci-dessous).
 #     6. verifie que les conteneurs attendus sont `running` et resume.
+#     7. rejoue la config NEUTRE de chaque composant (.peaas/setup-scripts :
+#        route de sante APISIX, schema neutre PostgreSQL, liens DMR Solace).
 #
 #  Suppose present dans le dossier courant (fournis par le generateur) :
 #     docker-compose.yaml, .env, site-profile.yaml, certs/,
-#     .peaas/start-order (facultatif), <composant>/ par composant retenu.
+#     .peaas/start-order (facultatif), .peaas/setup-scripts (facultatif),
+#     <composant>/ par composant retenu.
 #
 #  Ecrit un docker-compose.override.yml local : le reseau `peaas` est cree
 #  hors compose (etape 3), l'override dit a compose de l'utiliser tel quel
@@ -31,8 +34,8 @@
 #  (echec net si sa plage differe). Dossiers deja crees -> ignores.
 #  `docker compose up -d` -> aucune recreation inutile.
 #
-#  NE configure PAS le fonctionnel des services (topics Solace, routes
-#  APISIX, schema SQL) : etape suivante. Ici on prepare et on demarre.
+#  Configure UNIQUEMENT le socle neutre (etape 7). Aucun contenu metier
+#  (topics, tables applicatives, flows de cas d'usage) : etape suivante.
 #
 #  Aucune hypothese de proximite reseau avec les autres sites : le script
 #  n'utilise que .env / site-profile.yaml / certs/. Aucune adresse de pair
@@ -271,23 +274,32 @@ if [ "${#ECHEC[@]}" -gt 0 ]; then
 fi
 
 # =============================================================================
-etape "7. Federation des brokers (liens DMR)"
+etape "7. Configuration des composants (rejeu idempotent)"
 # =============================================================================
-# Socle NEUTRE relie aux autres : relie le broker Solace local a ses pairs.
-# Aucun contenu metier. Non bloquant : les liens montent quand les pairs
-# sont deployes ; le script est rejouable.
-if contient solace "${PRESENTS[@]}"; then
-  if [ ! -f scripts/setup/solace-dmr.sh ]; then
-    info "scripts/setup/solace-dmr.sh absent du package — federation a lancer a la main"
-  elif ! grep -qE '^[[:space:]]*-[[:space:]]*id:' site-profile.yaml 2>/dev/null; then
-    info "site sans pair dans site-profile.yaml — pas de federation a configurer"
-  elif bash scripts/setup/solace-dmr.sh --profile site-profile.yaml --tls-dir solace/tls; then
-    ok "liens DMR configures"
-  else
-    avert "config DMR incomplete (broker pas pret ou pair injoignable). Rejouable : bash scripts/setup/solace-dmr.sh"
-  fi
+# Socle NEUTRE : chaque script de .peaas/setup-scripts rejoue la config de SON
+# composant (route de sante APISIX, schema neutre PostgreSQL, liens DMR
+# Solace). Aucun contenu metier. Non bloquant et rejouable : un composant pas
+# encore pret n'arrete pas l'installation. Le manifeste vient du generateur
+# (catalogue) ; install.sh ne devine rien.
+if [ -f .peaas/setup-scripts ]; then
+  while IFS=$'\t' read -r comp script; do
+    [ -n "$comp" ] || continue
+    if ! contient "$comp" "${PRESENTS[@]}"; then
+      info "$comp absent du package — $script ignore"
+      continue
+    fi
+    if [ ! -f "$script" ]; then
+      info "$script absent du package — $comp non configure automatiquement"
+      continue
+    fi
+    if bash "$script"; then
+      ok "$comp configure ($script)"
+    else
+      avert "$comp : configuration incomplete ($script). Rejouable : bash $script"
+    fi
+  done < .peaas/setup-scripts
 else
-  info "pas de broker Solace dans ce package"
+  info "aucun script de configuration dans ce package"
 fi
 
 printf '\n%sSUCCES%s socle PEaaS demarre (%d composant(s), reseau peaas=%s).\n' \

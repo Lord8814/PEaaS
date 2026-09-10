@@ -128,3 +128,42 @@ test("install.sh : 1er passage OK, 2e passage idempotent (reseau Docker)", () =>
   assert.doesNotMatch(r2.stdout + r2.stderr, /ECHEC/);
   assert.match(r2.stdout, /SUCCES/);
 });
+
+test("install.sh : etape 7 rejoue .peaas/setup-scripts (present ignore, absent signale)", () => {
+  const { dir, mockbin, mockstate } = bac();
+
+  // Manifeste : apisix present (script lance), solace absent du package (ignore).
+  fs.writeFileSync(
+    path.join(dir, ".peaas", "setup-scripts"),
+    "apisix\tscripts/setup/apisix.sh\nsolace\tscripts/setup/solace-dmr.sh\n"
+  );
+  fs.mkdirSync(path.join(dir, "scripts", "setup"), { recursive: true });
+  // Script factice idempotent : marque son passage dans le dossier courant.
+  fs.writeFileSync(
+    path.join(dir, "scripts", "setup", "apisix.sh"),
+    "#!/usr/bin/env bash\necho passage >> .apisix-setup-appels\n",
+    { mode: 0o755 }
+  );
+
+  const env = {
+    PATH: `${mockbin}:${process.env.PATH}`,
+    PEAAS_MOCK_DIR: mockstate,
+    PEAAS_NETWORK: "peaas-test",
+    MOCK_SERVICES: "etcd apisix"
+  };
+
+  const r1 = lancer(dir, env);
+  assert.equal(r1.code, 0, r1.stderr);
+  assert.match(r1.stdout, /apisix configure \(scripts\/setup\/apisix\.sh\)/);
+  assert.match(r1.stdout, /solace absent du package/);
+  assert.match(r1.stdout, /SUCCES/);
+
+  // rejeu : le script est relance, aucune erreur, toujours SUCCES
+  const r2 = lancer(dir, env);
+  assert.equal(r2.code, 0, r2.stderr);
+  assert.match(r2.stdout, /apisix configure/);
+  assert.match(r2.stdout, /SUCCES/);
+
+  const appels = fs.readFileSync(path.join(dir, ".apisix-setup-appels"), "utf8");
+  assert.equal(appels.trim().split("\n").length, 2, "script rejoue à chaque passage");
+});

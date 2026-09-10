@@ -37,20 +37,24 @@ dans le même dossier. Ce fichier en est la spécification.
 
 ## Produits au catalogue
 
-> État au 10/09/2026, après tâche 4 : le générateur lit **exclusivement** le
+> État au 10/09/2026, après tâches 4-5 : le générateur lit **exclusivement** le
 > catalogue (`web/app/catalogue.js` ; `components.js` supprimé). Noms alignés sur
 > le socle livré (D-009) : réseau `peaas`, `container_name` sans préfixe.
 
 | Produit | Entrée rédigée | Branchée au générateur | Gabarit | Config rejouée |
 |---|---|---|---|---|
-| APISIX | oui | oui | `config.yaml` (`admin_key` → `${APISIX_ADMIN_KEY}`) | `script_setup` référencé, corps = tâche 5 |
+| APISIX | oui | oui | `config.yaml` (`admin_key` → `${APISIX_ADMIN_KEY}`) | `apisix.sh` — route `/peaas/health` (PUT idempotent) |
 | etcd | oui | oui | — (stockage produit) | — |
-| Solace | oui | oui | — | `solace-dmr.sh` (fait) |
+| Solace | oui | oui | — | `solace-dmr.sh` (fédération DMR) |
 | Node-RED | oui | oui | `settings.js` neutre, `flows.json` = `[]`, `package.json` sans dépendance | flux monté au 1er démarrage |
-| PostgreSQL | oui | oui | — | `script_setup` référencé, corps = tâche 5 |
+| PostgreSQL | oui | oui | — | `postgres.sh` — schéma `peaas` + table marqueur (idempotent) |
 | pgAdmin | oui | oui | — | — |
 | Prometheus | oui | oui | `prometheus.yml` | — |
-| Grafana | oui | oui | — | — |
+| Grafana | oui | oui | `datasources.yaml` (source Prometheus, sans identifiant) | provisionnement au boot |
+
+> Rejeu orchestré par `install.sh` (étape 7) depuis `.peaas/setup-scripts`
+> (`<composant>\t<script>`), émis par le générateur pour chaque produit retenu
+> ayant un `script_setup`. Non bloquant, rejouable.
 
 > `nodered2` (démo round-robin) n'est plus au catalogue : instance unique dans le
 > socle neutre. Les flux Node-RED de démonstration sont un cas d'usage, hors socle.

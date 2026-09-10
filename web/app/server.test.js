@@ -74,10 +74,12 @@ function fabriquerSandbox() {
   fs.mkdirSync(path.join(dir, "PEaaSrepo", "scripts", "setup", "lib"), {
     recursive: true
   });
-  fs.writeFileSync(
-    path.join(dir, "PEaaSrepo", "scripts", "setup", "solace-dmr.sh"),
-    "#!/usr/bin/env bash\n"
-  );
+  for (const s of ["solace-dmr.sh", "apisix.sh", "postgres.sh"]) {
+    fs.writeFileSync(
+      path.join(dir, "PEaaSrepo", "scripts", "setup", s),
+      "#!/usr/bin/env bash\n"
+    );
+  }
   fs.writeFileSync(
     path.join(dir, "PEaaSrepo", "scripts", "setup", "lib", "dmr-initiator.sh"),
     "#!/usr/bin/env bash\n"
@@ -185,9 +187,20 @@ test("intégration : génération multi-site de bout en bout", async t => {
     assert.match(env, /^PEAAS_DOCKER_SUBNET=10\.90\.0\.0\/24$/m);
     assert.match(env, /^SITE_DMR_NODE_NAME=site-a$/m);
 
-    // solace retenu -> scripts de fédération DMR bundlés
+    // solace / apisix retenus -> scripts de config bundlés + manifeste (D-010)
     assert.ok(noms.includes("scripts/setup/solace-dmr.sh"), noms.join(" "));
     assert.ok(noms.includes("scripts/setup/lib/dmr-initiator.sh"), noms.join(" "));
+    assert.ok(noms.includes(".peaas/setup-scripts"), noms.join(" "));
+    const manif = execFileSync("tar", ["xzOf", archive, ".peaas/setup-scripts"], {
+      encoding: "utf8"
+    })
+      .split("\n")
+      .filter(Boolean)
+      .map(l => l.split("\t"));
+    const parComp = Object.fromEntries(manif);
+    assert.equal(parComp["solace"], "scripts/setup/solace-dmr.sh");
+    assert.equal(parComp["apisix"], "scripts/setup/apisix.sh");
+    assert.ok(!("etcd" in parComp), "etcd n'a pas de script_setup");
 
     // site-profile.yaml : identité + pairs complets avec infos de connexion
     const profil = yaml.load(
@@ -286,7 +299,12 @@ test("intégration : génération multi-site de bout en bout", async t => {
 
     // Le reste est identique à l'octet près (compose, install.sh, ordre,
     // gabarits, scripts, marqueurs de composant).
-    for (const k of ["docker-compose.yaml", "install.sh", ".peaas/start-order"]) {
+    for (const k of [
+      "docker-compose.yaml",
+      "install.sh",
+      ".peaas/start-order",
+      ".peaas/setup-scripts"
+    ]) {
       assert.equal(emp["site-a"][k], emp["site-b"][k], `${k} diffère`);
     }
     // Aucun répertoire data/ ni fichier issu d'un dossier de travail.

@@ -334,13 +334,21 @@ app.post("/api/package", asyncRoute(async (req, res) => {
     });
     archive.file(`${__dirname}/install.sh`, { name: "install.sh", mode: 0o755 });
 
-    // Scripts de configuration du socle neutre : inclus des qu'un produit
-    // retenu declare un `script_setup`. On versionne le script, jamais son
-    // resultat : install.sh le rejoue (federation DMR Solace, etc.).
+    // Scripts de configuration du socle neutre (D-010) : inclus des qu'un
+    // produit retenu declare un `script_setup`. On versionne le script,
+    // jamais son resultat ; install.sh les rejoue apres le demarrage.
+    const scriptsSetup = choix
+      .filter(c => cat[c] && cat[c].scriptSetup)
+      .map(c => [c, cat[c].scriptSetup]);
     const scriptsDir = `${STACK}/PEaaSrepo/scripts`;
-    const besoinScripts = choix.some(c => cat[c] && cat[c].scriptSetup);
-    if (besoinScripts && fs.existsSync(scriptsDir)) {
+    if (scriptsSetup.length && fs.existsSync(scriptsDir)) {
       archive.directory(scriptsDir, "scripts");
+      // Manifeste lu par install.sh : <composant><TAB><chemin du script>.
+      // install.sh ne devine plus rien du catalogue.
+      archive.append(
+        scriptsSetup.map(([c, s]) => `${c}\t${s}`).join("\n") + "\n",
+        { name: ".peaas/setup-scripts" }
+      );
     }
   }
 

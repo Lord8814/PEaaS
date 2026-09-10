@@ -144,6 +144,22 @@ test("catalogue réel : 8 produits, noms du socle (D-009)", () => {
   assert.deepEqual(cat.apisix.deps, ["etcd"]);
   assert.deepEqual(cat.grafana.deps, ["prometheus"]);
   assert.deepEqual(cat.pgadmin.deps, ["postgres"]);
+
+  // Grafana : source de données provisionnée, gabarit neutre sans identifiant.
+  const ds = cat.grafana.fichiersConfig.find(f =>
+    f.montage.endsWith("provisioning/datasources/prometheus.yaml")
+  );
+  assert.ok(ds && ds.ro, "grafana : gabarit datasource monté en ro");
+  const dsTexte = fs.readFileSync(ds.gabaritPath, "utf8");
+  assert.match(dsTexte, /url:\s*http:\/\/prometheus:9090/);
+  assert.doesNotMatch(dsTexte, /password|basicAuth|secureJsonData/i);
+
+  // script_setup : apisix / postgres / solace le déclarent, pas les autres.
+  assert.equal(cat.apisix.scriptSetup, "scripts/setup/apisix.sh");
+  assert.equal(cat.postgres.scriptSetup, "scripts/setup/postgres.sh");
+  assert.equal(cat.solace.scriptSetup, "scripts/setup/solace-dmr.sh");
+  assert.equal(cat.etcd.scriptSetup, null);
+  assert.equal(cat.grafana.scriptSetup, null);
   assert.deepEqual(
     ordreDemarrage(
       ["grafana", "solace", "etcd", "apisix", "prometheus", "nodered1"],
