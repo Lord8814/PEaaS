@@ -69,7 +69,24 @@ Format : date, décision, raison, alternatives écartées, statut.
 ## D-008 — Fédération DMR rejouable
 **Décision.** La configuration DMR de Solace est produite par des appels SEMPv2 idempotents, rejoués à l'installation à partir du profil de site. Pour chaque couple de sites, le site d'index le plus bas initie le lien ; l'autre le déclare en attente.
 **Raison.** On versionne le script, pas le broker configuré.
-**Statut.** Retenu. Payloads à valider contre un vrai broker.
+**Statut.** Retenu. Payloads SEMPv2 validés le 10/09 contre un vrai broker
+(soltr 10.26, `solace-dmr.test.js` sous `PEAAS_SOLACE_IT=1`) : schéma des objets
+DMR externes confirmé, `initiator` `local`/`remote` conforme, rejeu idempotent,
+`transportTlsEnabled: true` ajouté au lien pour l'auth par certificat client.
+Reste non vérifié : lien à l'état *actif* en mTLS (exige deux brokers).
+**Amendé (tâche 2, point 2).** Le nom du cluster DMR est une propriété de la
+**fédération**, pas du catalogue ni d'un site : champ `federation.dmr_cluster_name`
+de `topology.yaml`, recopié tel quel dans chaque `site-profile.yaml`, lu par
+`solace-dmr.sh` (fin de la variable d'environnement `SOLACE_DMR_CLUSTER` et de
+toute valeur par défaut câblée dans le script). La cohérence du nom entre sites
+est ainsi garantie par construction.
+**Amendé (tâche 3).** Le rejeu **réconcilie** la liste connect-via
+(`remoteAddresses`) de chaque lien avec le profil : POST de l'adresse voulue
+(rejeu → `ALREADY_EXISTS`, ok) **et** DELETE de toute autre adresse encore
+présente (pair qui a changé d'IP, ou ancien rôle). Fait lien désactivé (le
+broker refuse cette modification sur un lien actif). Vérifié contre un vrai
+broker : `solace-dmr.test.js` sous `PEAAS_SOLACE_IT=1` rejoue avec un pair
+d'IP modifiée et relit la liste.
 
 ---
 
