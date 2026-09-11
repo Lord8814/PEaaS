@@ -197,24 +197,54 @@ exige un second broker faisant confiance à la même CA de fédération.
 
 | Élément | Emplacement | Généré par | SAN | Expiration |
 |---|---|---|---|---|
-| Autorité de la fédération | `PEAAS_CA_DIR` (hors dépôt, 0600/0700) | Générateur | — | |
+| Autorité de la fédération | `/srv/peaas-ca` (hôte, hors dépôt, 0700, `lord`) | Générateur | — | |
 | Certificat site A | archive A, `certs/` | Générateur | DNS + nœud DMR + IP | |
 | Certificat site B | archive B, `certs/` | Générateur | DNS + nœud DMR + IP | |
 | Certificat site C | archive C, `certs/` | Générateur | DNS + nœud DMR + IP | |
 
-**`PEAAS_CA_DIR` (contrôle du 11/09, point 1 du lot correctif).** Non défini
-dans `webapp/compose.yaml` : résolu par défaut à `<__dirname>/ca-store`
-(`certs.js`), donc relatif à l'emplacement du code dans le conteneur. Le
-déplacement du code (`web/app/` → `web/webapp/app/`, docs/03 §Dépôts) a
-changé ce défaut, mais **aucune CA n'existe encore sur le disque**
-(`ca-store` absent de tout l'arbre `/mnt`, aucun conteneur ne l'ayant
-encore générée) : rien n'a donc été recréé silencieusement à cette
-occasion. Historique de `/mnt` (toutes branches, avant et après le
-11/09) contrôlé : aucune trace de `ca-store`, `*.key.pem` ni `.env` —
-l'exclusion (`/mnt/.gitignore` : `**/.env`, `*.pem`, `*.key`, `*.crt`,
-`*.p12`, `/web/`) a tenu même du temps où le code du générateur était
-suivi à plat par `/mnt`. Le dépôt `web`, lui, n'avait **aucun**
-`.gitignore` avant ce contrôle — corrigé (`ca-store/` ajouté).
+**`PEAAS_CA_DIR` (historique, contrôle du 11/09, point 1 du lot correctif).**
+Initialement non défini dans `webapp/compose.yaml` : résolu par défaut à
+`<__dirname>/ca-store` (`certs.js`), donc relatif à l'emplacement du code
+dans le conteneur — un déplacement de code aurait changé ce défaut. Aucune
+CA n'existait encore sur le disque à ce moment (contrôlé), et l'historique
+de `/mnt` (toutes branches) ne portait aucune trace de `ca-store`,
+`*.key.pem` ni `.env`. Depuis (D-006, voir « Installation du générateur »
+ci-dessous), `PEAAS_CA_DIR` est défini explicitement et le générateur
+refuse de démarrer s'il ne l'est pas.
+
+## Installation du générateur
+
+Avant le premier `docker compose up` dans `web/webapp/` :
+
+1. **Magasin CA (D-006).** Créer `/srv/peaas-ca` sur l'hôte, propriétaire du
+   service (`lord` sur cette machine), droits `0700` :
+   ```
+   sudo mkdir -p /srv/peaas-ca
+   sudo chown lord:lord /srv/peaas-ca
+   sudo chmod 700 /srv/peaas-ca
+   ```
+   Ce dossier est monté dans `webapp/compose.yaml` (`/srv/peaas-ca:/ca-store`,
+   `PEAAS_CA_DIR=/ca-store`) et **jamais** créé par le générateur lui-même :
+   `certs.js` (`verifierMagasinCa`) refuse de démarrer s'il est absent ou
+   inaccessible en écriture, plutôt que de créer une CA ailleurs.
+2. **`webapp/.env` (propre à cette machine, non versionné).** Copier
+   `webapp/.env.example` en `webapp/.env` et renseigner `PEAAS_CA_UID` /
+   `PEAAS_CA_GID` (uid:gid du propriétaire de `/srv/peaas-ca` ci-dessus —
+   `stat -c "%u" /srv/peaas-ca` / `stat -c "%g" /srv/peaas-ca`) :
+   ```
+   cp webapp/.env.example webapp/.env
+   ```
+   `webapp/compose.yaml` fait tourner le conteneur sous cet uid:gid
+   (`user:`) : sans ce fichier, `docker compose up` échoue explicitement
+   (variable requise manquante) plutôt que de démarrer en root, qui
+   outrepasserait les droits `0700` du magasin CA et viderait le contrôle
+   du point 1 de son sens (`docs/05`).
+3. `docker compose up -d` dans `web/webapp/`.
+
+**Vérifié le 11/09** depuis un shell sans aucune variable exportée
+(`env -i`) : `docker compose up` échoue proprement (« required variable
+PEAAS_CA_UID is missing a value ») tant que `webapp/.env` n'existe pas ;
+réussit une fois le fichier renseigné, conteneur sous l'uid:gid attendu.
 
 ## Identifiants
 

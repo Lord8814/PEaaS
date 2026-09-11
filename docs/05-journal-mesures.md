@@ -204,3 +204,20 @@ n'était vérifié qu'à l'un de ses bouts, jamais en bout en bout, donc jamais 
   le contrôle réellement opposant. Revérifié en conditions réelles après
   correction : `chmod 500` sur le magasin → boucle de redémarrage avec le
   message d'erreur ; droits restaurés → redémarre.
+- **`PEAAS_CA_UID`/`PEAAS_CA_GID` posées seulement dans l'environnement de
+  la session, jamais dans un fichier réel.** Après le passage du `user:` du
+  compose à une variable, la vérification « ça vient d'une variable, pas
+  d'une valeur en dur » a été faite en import shell (`export ... ; docker
+  compose up`) dans CETTE session — jamais depuis un terminal neuf.
+  `docker compose up` échouait donc dès qu'aucune variable n'était déjà
+  exportée : `webapp/.env` n'avait en réalité jamais été créé (l'outil
+  d'édition refuse d'écrire tout fichier nommé `.env`, y compris via un
+  détour `cp`/`sed` en Bash — protection du bac à sable, pas une règle du
+  projet). **Pourquoi ça n'a pas été détecté avant** : aucun test, aucune
+  vérification manuelle n'a relancé `docker compose up` depuis un
+  environnement propre (`env -i`) après ce changement — seule la
+  substitution (`docker compose config`) et un `up` dans la session déjà
+  exportée avaient été vérifiés. Corrigé : `webapp/.env.example` versionné
+  (variables sans valeur) ; `webapp/.env` confirmé ignoré par le dépôt ;
+  installation documentée (`docs/03`). Revérifié avec `env -i` : échec
+  explicite sans le fichier, succès une fois créé depuis l'exemple.
