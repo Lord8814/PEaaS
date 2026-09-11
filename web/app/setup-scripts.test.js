@@ -83,6 +83,49 @@ test("postgres.sh --dry-run : generator_version lue si .peaas/generator-version 
   assert.match(r.stdout, /\('generator_version', '2026\.09\.10'\)/);
 });
 
+test("postgres.sh --dry-run : site_id et generator_version partagent le même ON CONFLICT DO UPDATE", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "peaas-pg-"));
+  fs.writeFileSync(path.join(dir, "site-profile.yaml"), 'site:\n  id: "site-a"\n  index: 1\n');
+  fs.mkdirSync(path.join(dir, ".peaas"));
+  fs.writeFileSync(path.join(dir, ".peaas", "generator-version"), "2026.09.10\n");
+  const r = run("postgres.sh", ["--dry-run"], { cwd: dir });
+  fs.rmSync(dir, { recursive: true, force: true });
+  assert.equal(r.code, 0, r.stderr);
+  // une seule instruction INSERT ... ON CONFLICT couvrant les 4 clés :
+  // une réinstallation avec un generator_version différent met à jour la ligne.
+  assert.equal((r.stdout.match(/ON CONFLICT/g) || []).length, 1);
+  assert.match(r.stdout, /'site_id', 'site-a'.*ON CONFLICT \(cle\) DO UPDATE SET valeur = EXCLUDED\.valeur/s);
+  assert.match(r.stdout, /'generator_version', '2026\.09\.10'.*ON CONFLICT \(cle\) DO UPDATE SET valeur = EXCLUDED\.valeur/s);
+});
+
+test("postgres.sh : PostgreSQL injoignable / psql en échec -> code non nul (échec propagé)", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "peaas-pg-"));
+  fs.writeFileSync(path.join(dir, "docker-compose.yaml"), "services: {}\n");
+  fs.writeFileSync(path.join(dir, "docker-compose.override.yml"), "networks: {}\n");
+
+  // Mock "docker" : simule un `compose ... exec -T postgres psql ...` qui
+  // échoue (conteneur pas pret / requete SQL en erreur), comme un vrai
+  // psql sous ON_ERROR_STOP=1 le ferait.
+  const mockbin = path.join(dir, ".mockbin");
+  fs.mkdirSync(mockbin);
+  fs.writeFileSync(
+    path.join(mockbin, "docker"),
+    "#!/usr/bin/env bash\n" +
+      "echo 'psql: error: connection to server failed' >&2\n" +
+      "exit 1\n",
+    { mode: 0o755 }
+  );
+
+  const r = run("postgres.sh", [], {
+    cwd: dir,
+    env: { ...process.env, PATH: `${mockbin}:${process.env.PATH}` }
+  });
+  fs.rmSync(dir, { recursive: true, force: true });
+
+  assert.notEqual(r.code, 0, "postgres.sh doit sortir en erreur, pas en 0");
+  assert.doesNotMatch(r.stdout, /schema 'peaas' et table marqueur en place/);
+});
+
 test("les deux scripts : --help sort proprement (code 0)", () => {
   for (const s of ["apisix.sh", "postgres.sh"]) {
     const r = run(s, ["--help"]);
