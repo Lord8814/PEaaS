@@ -6,15 +6,15 @@ où en est le chantier sans qu'on ait à le réexpliquer.
 
 # État d'avancement — PEaaS multi-site
 
-**Dernière mise à jour :** 10/09/2026
+**Dernière mise à jour :** 11/09/2026
 
 ## Phase en cours
 
 > Phase 1 — Générateur. Catalogue branché (tâche 4), config par composant
-> rejouée (tâche 5). **Non close** : identifiants encore en dur (tâche 6),
-> contrôles du contrat de machine + traçabilité `install.sh` (tâche 7),
-> critère de sortie (« un package généré s'installe seul ») non vérifié sur
-> machine vierge.
+> rejouée (tâche 5), identifiants saisis à la génération + interfaces
+> d'admin en 127.0.0.1 (tâche 6). **Non close** : contrôles du contrat de
+> machine + traçabilité `install.sh` (tâche 7), critère de sortie (« un
+> package généré s'installe seul ») non vérifié sur machine vierge.
 
 ## Fait
 
@@ -40,7 +40,8 @@ Prompt : `prompt-claude-code-lot-correctif.md`.
 - [x] Tâche 3 — SAN DNS + IP (D-013)
 - [x] Tâche 4 — catalogue branché (dossier par produit), `components.js` supprimé, archive sans `data/`, diff inter-sites limité à l'identité — commits `dfdac96` (PEaaSrepo) + `79fa9be` (/mnt) ; historique du dépôt vérifié (aucun secret jamais commité dans `PEaaSrepo/`, cf. `docs/05`)
 - [x] Tâche 5 — configuration rejouée par composant (D-010) : `apisix.sh` (route de santé `/peaas/health`, Admin API idempotente) et `postgres.sh` (schéma neutre `peaas` + table marqueur) écrits ; provisionnement Grafana de la source Prometheus (gabarit neutre) ; flux Node-RED montés au 1er démarrage (tâche 4) ; `install.sh` rejoue `.peaas/setup-scripts` (manifeste du générateur, non bloquant, rejouable) — 74 tests
-- Vérification de bout en bout des identifiants, interfaces d'admin locales (D-011, D-018)
+- [x] Corrections 2-6 du 11/09 (avant reprise tâche 6) : D-008 restauré (résumé qui avait perdu ses amendements), `apisix.sh` sort en erreur sans clé, `install.sh` étape 7 fait un bilan par script (sauté/appliqué/impossible), `peaas.socle_info` porte `site_id`/`generator_version`
+- [x] Tâche 6 — identifiants et interfaces d'administration (D-011, D-018) : `/api/components` expose les identifiants requis, `/api/package` refuse (400) si un identifiant manque, `.env` de l'archive (0600) porte les identifiants + est toujours émis dès qu'un est requis (avant : multisite seulement) ; `APISIX_ADMIN_KEY` : chaîne complète .env → environment du service → `${{APISIX_ADMIN_KEY}}` (syntaxe native APISIX) ; SEMP Solace + Admin API/métriques APISIX liés à `127.0.0.1`, etcd sans port du tout ; `solace-dmr.sh` lit `SOLACE_ADMIN_PASSWORD` du `.env` (avant : mot de passe `admin` fixe, aurait échoué dès qu'un vrai mot de passe était posé) — 89 tests
 - `install.sh` : horodatage, version du générateur, contrôle NTP, vérification du contrat de machine hôte (D-015, D-017, D-019) — complément de prompt : `prompt-complement-tache-7.md`
 - Refus de générer si `PEaaSrepo/` a des modifications non commitées (tâche 7 bis)
 
@@ -50,10 +51,9 @@ Prompt : `prompt-claude-code-lot-correctif.md`.
 
 ## Prochaine action
 
-Tâche 6 : purge des identifiants restés en dur + saisie à la génération + câblage
-`.env` des variables secret (`APISIX_ADMIN_KEY`, mots de passe Solace/PostgreSQL/
-pgAdmin/Grafana) ; test dédié « identifiant sans valeur jamais substitué par une
-chaîne vide, génération refusée ».
+Tâche 7 + 7 bis (`prompt-complement-tache-7.md`) : horodatage `install.sh`,
+version du générateur, contrôle NTP, contrat de machine hôte, refus de
+générer si `PEaaSrepo/` est dirty.
 
 ## Bonus (si le temps le permet)
 

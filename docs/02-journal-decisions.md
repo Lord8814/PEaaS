@@ -123,6 +123,7 @@ et sort en 0.
 **Décision.** Aucun identifiant n'a de valeur par défaut, ni dans le catalogue ni dans les gabarits. Quand un composant sélectionné en requiert, l'interface invite à les saisir ; ils sont écrits dans le `.env` de l'archive (droits 0600). La génération échoue s'il en manque un. Le générateur ne les conserve pas au-delà de la construction de l'archive.
 **Raison.** Un secret par défaut est un secret public. Aucun secret dans le dépôt.
 **Statut.** Retenu. Constat du 10/09 : la saisie existe côté interface, mais six identifiants restent en dur dans le code ou les gabarits (Solace, PostgreSQL ×2, pgAdmin ×2, Grafana). À supprimer.
+**Implémenté (tâche 6, 11/09).** Le constat du 10/09 ne tenait plus à l'examen (aucun identifiant en dur retrouvé dans le catalogue actuel) ; le vrai manque était la chaîne de bout en bout, absente côté générateur. `/api/components` expose désormais les `identifiants` requis par produit ; `/api/package` les valide (400, identifiant(s) manqués nommés) avant d'ouvrir le flux d'archive, comme la topologie. `.env` de l'archive (0600) les porte, émis dès qu'un composant retenu en requiert un (avant : multisite uniquement). `solace-dmr.sh` lisait un mot de passe SEMP fixe (`admin`) : lit maintenant `SOLACE_ADMIN_PASSWORD` du `.env` si `SOLACE_SEMP_PASS` n'est pas fourni.
 
 ---
 
@@ -178,7 +179,7 @@ et sort en 0.
 **Date.** 10/09/2026
 **Décision.** API de gestion Solace (SEMP), Admin API d'APISIX et etcd publiés sur `127.0.0.1` uniquement. Seuls les flux inter-sites de la section 8.1 sont exposés.
 **Raison.** Les scripts de configuration s'exécutent sur l'hôte ; aucun site n'a besoin d'administrer un autre.
-**Statut.** Retenu.
+**Statut.** Retenu. **Implémenté (tâche 6, 11/09)** : Admin API + métriques APISIX (9180/9091) et SEMP Solace (8080) liés à `127.0.0.1` dans le compose du catalogue (jusque-là publiés sur toutes les interfaces, malgré des métadonnées `ports:` qui l'annonçaient déjà). etcd va plus loin que la décision : aucun port publié du tout, y compris en local (jamais consulté depuis l'hôte). CLAUDE.md §Ports corrigé pour Solace, qui listait encore 8080 comme public.
 
 ---
 
