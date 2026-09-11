@@ -227,7 +227,12 @@ vérifiables depuis la machine cible), comme prévu.
 
 ---
 
-## D-XXX — *(modèle)*
+## D-021 — Le hash inscrit doit correspondre au code réellement chargé, pas seulement au dépôt sur disque
+**Date.** 11/09/2026
+**Décision.** Le générateur relève le hash du dépôt générateur (`GENERATOR_REPO_DIR`) UNE SEULE FOIS, au démarrage du process (`HASH_GENERATEUR_AU_DEMARRAGE`). À chaque génération, ce hash est comparé à celui lu sur disque à cet instant : s'ils diffèrent, `/api/package` refuse (409), message invitant explicitement à redémarrer le générateur. Ce contrôle est distinct de D-020 (dépôt propre) et n'est jamais contourné par `PEAAS_ALLOW_DIRTY`, qui ne couvre que l'état sale d'un dépôt, pas la fraîcheur du process.
+**Raison.** `server.js` et les modules qu'il `require()` sont chargés une seule fois en mémoire au démarrage (docs/03 § Code servi par le conteneur — le conteneur monte le code en RW, il ne le recopie jamais) ; D-020 relit le hash sur disque à chaque génération. Entre les deux se glisse un scénario réel : un commit de logique sur le dépôt SANS redémarrer le process produit un dépôt propre, un hash à jour, mais un code encore ancien réellement exécuté — l'archive mentirait sur ce qu'elle contient, sans que rien ne le signale.
+**Écarté.** Recharger `server.js` à chaud à chaque requête (invaliderait le principe d'un process qui tourne, coût et complexité disproportionnés pour ce socle). Se contenter de documenter la nécessité d'un redémarrage sans le vérifier (déjà tenté en pratique dans cette session : jamais oublié une fois, mais rien ne garantissait que ça continue).
+**Statut.** Retenu, implémenté (`server.js`, tests dédiés dans `server.test.js`).
 **Décision.**
 **Raison.**
 **Écarté.**
