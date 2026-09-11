@@ -282,6 +282,51 @@ seule fenêtre de divergence possible est entre un `git commit` et le
 prochain redémarrage du process (server.js en mémoire reste l'ancien code
 un instant) — se referme dès `docker compose restart webapp`.
 
+## Écriture dans PEaaSrepo (D-022)
+
+`PEaaSrepo/` était jusqu'ici monté en lecture seule (via `/mnt:/stack:ro`),
+conformément à la règle générale (CLAUDE.md : « ne modifie jamais le
+socle »). `webapp/compose.yaml` ajoute un montage **plus spécifique**,
+monté APRÈS le montage général (Docker superpose les montages dans
+l'ordre — celui-ci l'emporte sur ce sous-arbre précis, sans rien changer
+au reste de `/mnt`) :
+```yaml
+- /mnt:/stack:ro
+- /mnt/PEaaSrepo:/stack/PEaaSrepo:rw
+```
+Seule route qui y écrit : `POST /api/topology/sites` (ajout d'un site à
+`topology.yaml`, commit Git immédiat). Aucune autre route, aucun autre
+fichier de `PEaaSrepo/` n'est jamais écrit par le générateur — portée
+choisie délibérément étroite plutôt qu'un accès RW général.
+
+**Pourquoi l'exception a été retenue** (plutôt qu'un process séparé, hors
+du conteneur webapp, qui aurait validé et committé à la place du
+générateur) : le générateur produit déjà les archives déployées sur les
+sites, scripts de configuration compris — un générateur compromis peut
+déjà livrer n'importe quoi aux sites sans jamais toucher au dépôt. Lui
+donner l'écriture sur `PEaaSrepo` n'étend donc presque pas ce qu'il peut
+faire de mal, et chaque écriture laisse un commit visible dans
+l'historique (message nommant le site et l'index). Ce qui reste protégé
+en lecture seule : le reste de `/mnt` (composes de run local, `docs/`,
+outillage) — les conteneurs de travail eux-mêmes.
+
+**Garde-fous** (voir `topology-write.js` et `server.js`) :
+- l'`index` d'un nouveau site est TOUJOURS attribué par le serveur
+  (dernier de `index_history` + 1) — un client qui en fournit un le voit
+  ignoré ;
+- le document candidat est validé en totalité par `validateTopology` (les
+  mêmes règles D-005/D-012/D-013 qu'à la génération) AVANT toute écriture
+  disque, et le texte réécrit est revalidé par un round-trip avant d'être
+  renvoyé au serveur ;
+- `PEaaSrepo` doit être propre AVANT l'écriture — jamais de bypass
+  `PEAAS_ALLOW_DIRTY` sur cette route (à la différence de `/api/package`,
+  D-020) : elle écrit elle-même dans le dépôt, un bypass mélangerait le
+  commit à un état non maîtrisé ;
+- aucune route, aucun contrôle d'interface ne permet de modifier ou de
+  retirer un site existant, ni de toucher à `index_history` au-delà d'y
+  ajouter une entrée. La remise à zéro d'`index_history` (avant le premier
+  déploiement réel) reste une opération manuelle, hors de ce générateur.
+
 ## Identifiants
 
 > Aucune valeur par défaut. Saisis à la génération, écrits dans le `.env` de

@@ -233,6 +233,15 @@ vérifiables depuis la machine cible), comme prévu.
 **Raison.** `server.js` et les modules qu'il `require()` sont chargés une seule fois en mémoire au démarrage (docs/03 § Code servi par le conteneur — le conteneur monte le code en RW, il ne le recopie jamais) ; D-020 relit le hash sur disque à chaque génération. Entre les deux se glisse un scénario réel : un commit de logique sur le dépôt SANS redémarrer le process produit un dépôt propre, un hash à jour, mais un code encore ancien réellement exécuté — l'archive mentirait sur ce qu'elle contient, sans que rien ne le signale.
 **Écarté.** Recharger `server.js` à chaud à chaque requête (invaliderait le principe d'un process qui tourne, coût et complexité disproportionnés pour ce socle). Se contenter de documenter la nécessité d'un redémarrage sans le vérifier (déjà tenté en pratique dans cette session : jamais oublié une fois, mais rien ne garantissait que ça continue).
 **Statut.** Retenu, implémenté (`server.js`, tests dédiés dans `server.test.js`).
+
+---
+
+## D-022 — Le générateur peut écrire dans `PEaaSrepo`, mais seulement pour ajouter un site
+**Date.** 11/09/2026
+**Décision.** `webapp/compose.yaml` remonte `PEaaSrepo/` en RW par-dessus le montage général `/mnt:/stack:ro` (Docker superpose les montages dans l'ordre : le plus spécifique, monté après, l'emporte sur ce sous-arbre). Une seule route en tire parti : `POST /api/topology/sites`, qui ajoute un site à `topology.yaml` (index attribué par le serveur, jamais le client) et le committe immédiatement dans `PEaaSrepo` (identité Git fixe, message nommant le site et l'index). Le reste de `/mnt` reste en lecture seule. Aucune route ne modifie ou ne retire un site existant, ni ne touche à `index_history` au-delà d'y ajouter une entrée.
+**Raison.** Le générateur produit déjà les archives déployées sur les sites (scripts de configuration compris) : un générateur compromis peut déjà livrer n'importe quoi aux sites sans jamais toucher au dépôt. Lui donner l'écriture sur `PEaaSrepo`, avec une portée aussi étroite, n'étend donc presque pas ce qu'il peut faire de mal — et chaque écriture laisse un commit visible dans l'historique, alors qu'un contournement de la règle générale (`/mnt` en lecture seule) sans cette traçabilité serait bien plus difficile à détecter après coup. Ce qui reste protégé, ce sont les conteneurs de travail (le reste de `/mnt`), qui n'ont pas de raison d'être touchés par le générateur.
+**Écarté.** Un process séparé, hors du conteneur webapp, qui validerait et committerait à la place du générateur (cloisonnement plus strict, mais complexité et latence supplémentaires pour un gain de sécurité marginal compte tenu de la raison ci-dessus). Autoriser l'écriture sur `/mnt` en général plutôt que sur `PEaaSrepo/` seul (aurait donné accès aux conteneurs de travail, sans aucun bénéfice pour cette fonctionnalité).
+**Statut.** Retenu, implémenté (`topology-write.js`, `server.js` — `POST /api/topology/sites`, `webapp/compose.yaml`).
 **Décision.**
 **Raison.**
 **Écarté.**

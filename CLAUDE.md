@@ -29,7 +29,7 @@
 - Ce qui décrit le socle (gabarits, scripts) part dans `PEaaSrepo/` par une action explicite ; ce qui est produit n'est conservé nulle part — un conteneur configuré embarque l'adresse de ses pairs, il n'est plus portable.
 
 ### Générateur (`web/`)
-- `webapp` sert l'UI sur `127.0.0.1:3001`, monte `./app` en RW et `/mnt` en `/stack:ro` (lecture seule : ne modifie jamais le socle).
+- `webapp` sert l'UI sur `127.0.0.1:3001`, monte `./app` en RW et `/mnt` en `/stack:ro` (lecture seule : ne modifie jamais le socle), **sauf** `PEaaSrepo/` remonté en RW par-dessus (D-022) : seule écriture admise, portée volontairement étroite à `POST /api/topology/sites` (ajout d'un site à `topology.yaml`, commit Git immédiat). Aucune autre route, aucun autre chemin de `/mnt` n'est jamais modifié.
 - Produit : `docker-compose.yaml` assemblé depuis le catalogue (`PEaaSrepo/catalogue/*/produit.yaml`, lu par `web/app/catalogue.js`) selon la sélection, dépendances résolues ; + les gabarits `fichiers_config` du dépôt et les `scripts/` de setup ; le tout dans `peaas-package.tar.gz`. Aucun contenu des dossiers de travail, aucun `*/data/` (D-009).
 - Le compose émis déclare `peaas` en `driver: bridge`, pas `external` (un site neuf crée le sien).
 - Ne doit pas embarquer : secrets et clés/certificats, le catalogue, le contenu de `*/data/`.
@@ -56,7 +56,7 @@ Aucun `depends_on` déclaré. Ordre à respecter au démarrage manuel (`ordre_de
 | `pgadmin/` | `pgadmin` | dpage/pgadmin4:latest | Admin web de PostgreSQL | `./data` → `/var/lib/pgadmin` |
 | `prometheus/` | `prometheus` | prom/prometheus:latest | Collecte de métriques | `./conf/prometheus.yml` → `/etc/prometheus/prometheus.yml` ; `./data` → `/prometheus` |
 | `grafana/` | `grafana` | grafana/grafana:latest | Visualisation des métriques | `./data` → `/var/lib/grafana` |
-| `web/` | `webapp` | node:20-alpine | Générateur de packages | `./app` → `/app` ; `/mnt` → `/stack:ro` |
+| `web/` | `webapp` | node:20-alpine | Générateur de packages | `./app` → `/app` ; `/mnt` → `/stack:ro` ; `PEaaSrepo/` → `/stack/PEaaSrepo:rw` (D-022, remonté par-dessus) |
 
 Ports : `apisix` 9080 public, 9180/9091 sur `127.0.0.1`. `solace` 55555/1883/8000/5672/9000 publics, 8080 (SEMP) sur `127.0.0.1` (D-018). `nodered1` 1880, `pgadmin` 5433, `prometheus` 9090, `grafana` 3000, `webapp` 3001 : liés à `127.0.0.1`. `etcd` et `postgres` n'exposent aucun port.
 
