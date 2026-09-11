@@ -294,10 +294,15 @@ au reste de `/mnt`) :
 - /mnt:/stack:ro
 - /mnt/PEaaSrepo:/stack/PEaaSrepo:rw
 ```
-Seule route qui y écrit : `POST /api/topology/sites` (ajout d'un site à
-`topology.yaml`, commit Git immédiat). Aucune autre route, aucun autre
-fichier de `PEaaSrepo/` n'est jamais écrit par le générateur — portée
-choisie délibérément étroite plutôt qu'un accès RW général.
+Trois routes y écrivent, chacune un commit Git dédié, toujours et
+uniquement sur `topology.yaml` : `POST /api/topology/sites` (ajout),
+`PATCH /api/topology/sites/:id` (modification de `host_address` /
+`host_cidr` / `dmr_node_name` d'un site existant — jamais son `id`, son
+`index`, `passthrough_port` ni `dmr_link_initiator`), `DELETE
+/api/topology/sites/:id` (retrait du site de `sites:`, `index_history`
+jamais touché). Aucune autre route, aucun autre fichier de `PEaaSrepo/`
+n'est jamais écrit par le générateur — portée choisie délibérément étroite
+plutôt qu'un accès RW général.
 
 **Pourquoi l'exception a été retenue** (plutôt qu'un process séparé, hors
 du conteneur webapp, qui aurait validé et committé à la place du
@@ -319,13 +324,27 @@ outillage) — les conteneurs de travail eux-mêmes.
   disque, et le texte réécrit est revalidé par un round-trip avant d'être
   renvoyé au serveur ;
 - `PEaaSrepo` doit être propre AVANT l'écriture — jamais de bypass
-  `PEAAS_ALLOW_DIRTY` sur cette route (à la différence de `/api/package`,
-  D-020) : elle écrit elle-même dans le dépôt, un bypass mélangerait le
-  commit à un état non maîtrisé ;
-- aucune route, aucun contrôle d'interface ne permet de modifier ou de
-  retirer un site existant, ni de toucher à `index_history` au-delà d'y
-  ajouter une entrée. La remise à zéro d'`index_history` (avant le premier
-  déploiement réel) reste une opération manuelle, hors de ce générateur.
+  `PEAAS_ALLOW_DIRTY` sur aucune des trois routes (à la différence de
+  `/api/package`, D-020) : elles écrivent elles-mêmes dans le dépôt, un
+  bypass mélangerait le commit à un état non maîtrisé ;
+- une modification d'adresse (`PATCH`) rend le certificat de site en place
+  invalide (SAN ≠ topologie) : la génération SUIVANTE le réémet
+  automatiquement (D-013, `certs.js` compare déjà le SAN désiré au SAN du
+  certificat existant — mécanisme préexistant, exercé pour la première
+  fois par une vraie modification via l'API, testé) ;
+- une suppression (`DELETE`) ne touche jamais `index_history` : l'entrée
+  du site retiré y reste pour toujours (topology.yaml § « Supprimer un
+  site »). Un site ajouté ensuite reçoit donc toujours un index FRAIS,
+  jamais celui d'un site supprimé — testé ;
+- aucune route, aucun contrôle d'interface ne permet de modifier le nom du
+  cluster DMR (`federation.dmr_cluster_name`) ni de toucher à
+  `index_history` au-delà d'y ajouter une entrée lors d'un ajout. **Le nom
+  du cluster DMR et l'historique des index ne sont pas modifiables depuis
+  l'interface : ils se fixent une fois, à la main, avant le premier
+  déploiement ; les changer sur une fédération déployée casse tous les
+  liens.** La suppression d'un site, elle, EST possible depuis
+  l'interface — avec confirmation explicite (`window.confirm`) avant tout
+  appel réseau, jamais silencieuse.
 
 ## Identifiants
 

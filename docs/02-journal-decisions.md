@@ -241,7 +241,13 @@ vérifiables depuis la machine cible), comme prévu.
 **Décision.** `webapp/compose.yaml` remonte `PEaaSrepo/` en RW par-dessus le montage général `/mnt:/stack:ro` (Docker superpose les montages dans l'ordre : le plus spécifique, monté après, l'emporte sur ce sous-arbre). Une seule route en tire parti : `POST /api/topology/sites`, qui ajoute un site à `topology.yaml` (index attribué par le serveur, jamais le client) et le committe immédiatement dans `PEaaSrepo` (identité Git fixe, message nommant le site et l'index). Le reste de `/mnt` reste en lecture seule. Aucune route ne modifie ou ne retire un site existant, ni ne touche à `index_history` au-delà d'y ajouter une entrée.
 **Raison.** Le générateur produit déjà les archives déployées sur les sites (scripts de configuration compris) : un générateur compromis peut déjà livrer n'importe quoi aux sites sans jamais toucher au dépôt. Lui donner l'écriture sur `PEaaSrepo`, avec une portée aussi étroite, n'étend donc presque pas ce qu'il peut faire de mal — et chaque écriture laisse un commit visible dans l'historique, alors qu'un contournement de la règle générale (`/mnt` en lecture seule) sans cette traçabilité serait bien plus difficile à détecter après coup. Ce qui reste protégé, ce sont les conteneurs de travail (le reste de `/mnt`), qui n'ont pas de raison d'être touchés par le générateur.
 **Écarté.** Un process séparé, hors du conteneur webapp, qui validerait et committerait à la place du générateur (cloisonnement plus strict, mais complexité et latence supplémentaires pour un gain de sécurité marginal compte tenu de la raison ci-dessus). Autoriser l'écriture sur `/mnt` en général plutôt que sur `PEaaSrepo/` seul (aurait donné accès aux conteneurs de travail, sans aucun bénéfice pour cette fonctionnalité).
-**Statut.** Retenu, implémenté (`topology-write.js`, `server.js` — `POST /api/topology/sites`, `webapp/compose.yaml`).
+**Statut.** Retenu, implémenté (`topology-write.js`, `server.js` — `POST /api/topology/sites`, `PATCH/DELETE /api/topology/sites/:id`, `webapp/compose.yaml`). Complété (11/09) : modification (`host_address`/`host_cidr`/`dmr_node_name`) et suppression d'un site, chacune un commit dédié, chacune validée en totalité avant écriture. Un changement d'adresse déclenche la réémission du certificat de site à la génération suivante (SAN, D-013) — testé. Une suppression retire le site de `sites:` mais laisse son entrée dans `index_history` : un ajout ultérieur reçoit toujours un index frais, jamais celui d'un site supprimé — testé. Confirmation explicite exigée par l'interface avant toute suppression (`window.confirm`), jamais silencieuse.
+
+Le nom du cluster DMR et l'historique des index ne sont pas modifiables depuis l'interface : ils se fixent une fois, à la main, avant le premier déploiement ; les changer sur une fédération déployée casse tous les liens.
+
+---
+
+## D-XXX — *(modèle)*
 **Décision.**
 **Raison.**
 **Écarté.**
