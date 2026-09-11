@@ -308,3 +308,21 @@ n'était vérifié qu'à l'un de ses bouts, jamais en bout en bout, donc jamais 
   tout redémarrage du process AU SEIN d'un même cas (un spawn par test),
   plus robuste dans cet environnement que le couple kill+respawn sur le
   même port initialement écrit.
+- **D-022 (POST /api/topology/sites) vérifié dans le vrai conteneur non-root,
+  SANS toucher au vrai `PEaaSrepo/`.** Vérifier « dans le vrai conteneur »
+  et « n'écrit jamais ailleurs que prévu » sont en tension quand
+  l'écriture cible justement le dépôt réel. Méthode retenue : copie
+  complète de `/mnt/PEaaSrepo` (avec `.git`) vers un répertoire temporaire,
+  conteneur lancé depuis l'image réelle (`docker run`, pas compose, pour
+  substituer les montages) avec les mêmes propriétés que la config réelle
+  — `--user 1000:1000` (le même non-root que `webapp/compose.yaml`),
+  `/tmp/.../PEaaSrepo:/stack/PEaaSrepo:rw` monté par-dessus un `/stack:ro`
+  général, `/srv/peaas-ca` réel monté (déjà testé en écriture). Résultat :
+  écriture + commit réels (`17b20c4`, auteur `PEaaS Generator
+  <generator@peaas.local>`, message correct), commentaires du fichier
+  intacts, propriétaire du fichier réécrit = `lord` (uid conteneur 1000
+  résolu côté hôte) ; refus dupliqué/dépôt sale confirmés (422/409) ; le
+  reste de `/stack` confirmé toujours en lecture seule
+  (`touch /stack/docs/...` → `Read-only file system`). Conteneur et copie
+  temporaire détruits après coup ; `/mnt/PEaaSrepo` recontrôlé propre,
+  `HEAD` inchangé.
