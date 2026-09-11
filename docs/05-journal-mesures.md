@@ -280,3 +280,31 @@ n'était vérifié qu'à l'un de ses bouts, jamais en bout en bout, donc jamais 
   page réelle. Corrigé une fois pour les deux : 8 tests jsdom
   (`public/app.test.js`) qui chargent la vraie page, exécutent le vrai
   `app.js`, et vérifient le DOM résultant.
+- **`generator=<hash>` pouvait ne PAS correspondre au code réellement
+  exécuté (D-021, audit du point 2 précédent — « la correspondance n'est
+  pas garantie »).** `server.js` et les modules qu'il `require()` sont
+  chargés une seule fois, en mémoire, au démarrage du process (déjà
+  consigné : docs/03 § Code servi par le conteneur). Le hash inscrit dans
+  l'archive, lui, était relu sur disque à CHAQUE génération (D-020). Entre
+  les deux : un commit de logique sur le dépôt générateur SANS redémarrer
+  le process produisait un dépôt parfaitement propre, un hash à jour, mais
+  un code encore ancien réellement en mémoire — l'archive mentait sur ce
+  qu'elle contenait. **Pourquoi ça n'a pas été détecté avant** : `docker
+  compose restart webapp` avait toujours suivi chaque modification de code
+  dans cette session (jamais volontairement omis) — le scénario n'avait
+  jamais été exercé. Corrigé : le hash du dépôt générateur est relevé UNE
+  SEULE FOIS au démarrage (`HASH_GENERATEUR_AU_DEMARRAGE`) et comparé à
+  celui lu sur disque à chaque génération ; `/api/package` refuse (409,
+  message nommant le redémarrage) si le HEAD a bougé depuis, y compris en
+  mode essai (`PEAAS_ALLOW_DIRTY` ne couvre que l'état sale, pas la
+  fraîcheur du process — testé séparément). 2 tests dédiés.
+  **Note de méthode (banc de test)** : la mise au point des tests a
+  d'abord donné des échecs faussement attribuables à la logique — cause
+  réelle : des process `node server.js` de bancs de test précédents
+  restés vivants sur le même port (mon propre `pkill -f "node server.js"`
+  ne matchait pas la ligne de commande réelle, `node
+  /chemin/.../server.js`, faute du chemin absolu dans le motif), répondant
+  à la place du process fraîchement démarré. Le test final évite en plus
+  tout redémarrage du process AU SEIN d'un même cas (un spawn par test),
+  plus robuste dans cet environnement que le couple kill+respawn sur le
+  même port initialement écrit.
