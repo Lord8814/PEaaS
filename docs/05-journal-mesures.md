@@ -249,3 +249,34 @@ n'était vérifié qu'à l'un de ses bouts, jamais en bout en bout, donc jamais 
   `12:11:05Z [package] etcd, apisix` (composants=["etcd","apisix"],
   `APISIX_ADMIN_KEY:"x"`, valeur de test) ; `12:12:35Z [package] etcd`
   (composants=["etcd"], site-b, aucun identifiant).
+- **Champ `host_address`/`passthrough_port` de l'écran multi-site :
+  contournait la traçabilité de l'adressage (audit du 11/09, suite de la
+  régression d'interface).** `public/app.js` affichait ces deux valeurs
+  dans des `<input>` **modifiables**, et `corpsGeneration()` les renvoyait
+  au serveur dans un champ `overrides`, que `server.js`
+  (`validerCibleSite`/`appliquerOverrides`) appliquait purement et
+  simplement à la topologie chargée AVANT `issueSiteCert` — un client HTTP
+  pouvait donc faire émettre un certificat de site avec un SAN IP de son
+  choix, différent de `topology.yaml`, sans que rien ne l'empêche ni ne le
+  journalise. Contraire à la règle d'isolation (CLAUDE.md : « aucune
+  adresse... dans ce que le générateur... valide ») — jamais journalisé
+  comme décision, ce mécanisme avait été ajouté sans jamais être revu.
+  **Pourquoi ça n'a pas été détecté avant** : même cause que la régression
+  de sélecteurs ci-dessus — aucun test n'exécutait `app.js`, et côté
+  serveur, aucun test ne couvrait `overrides` du tout (ni pour vérifier
+  qu'il fonctionnait, ni qu'il aurait dû être refusé). Corrigé : `server.js`
+  refuse (400) tout `overrides` reçu plutôt que de l'ignorer en silence —
+  un renvoi silencieux masquerait la réapparition du mécanisme côté client
+  sans jamais être détecté ; `host_address`/`passthrough_port` affichés en
+  lecture seule (`<output>`), plus jamais envoyés. Testé : côté serveur
+  (400, message nommant `overrides` et `topology.yaml`) et côté interface
+  (jsdom : élément `OUTPUT`, valeur affichée correcte, `overrides` absent
+  du corps envoyé).
+- **Régression d'interface, cause structurelle : aucun test n'exécutait le
+  JavaScript du navigateur.** Les deux défauts ci-dessus (case cachée
+  `#regenCert` non filtrée par les sélecteurs ; adresse client acceptée
+  sans contrôle) partagent la même cause profonde : `server.test.js`
+  valide le contrat HTTP, jamais ce que `public/app.js` en fait dans une
+  page réelle. Corrigé une fois pour les deux : 8 tests jsdom
+  (`public/app.test.js`) qui chargent la vraie page, exécutent le vrai
+  `app.js`, et vérifient le DOM résultant.

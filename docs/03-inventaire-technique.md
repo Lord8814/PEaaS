@@ -246,6 +246,42 @@ Avant le premier `docker compose up` dans `web/webapp/` :
 PEAAS_CA_UID is missing a value ») tant que `webapp/.env` n'existe pas ;
 réussit une fois le fichier renseigné, conteneur sous l'uid:gid attendu.
 
+### Code servi par le conteneur : monté, pas une copie figée
+
+`webapp/compose.yaml` monte `./app:/app` en RW — le `COPY app/ ./` du
+`Dockerfile` ne sert que de repli si ce montage est absent (image utilisée
+seule, hors de ce compose ; n'arrive jamais ici). Vérifié par `docker
+inspect` (`Source: /mnt/web/webapp/app`, `Destination: /app`) et en
+pratique : un fichier de `public/` édité sur l'hôte est servi tel quel au
+prochain appel HTTP, **sans rebuild ni redémarrage** (`express.static` relit
+le disque à chaque requête).
+
+**Ce qui n'est PAS automatique : `server.js` et les autres modules
+`require()`-és sont chargés une seule fois, au démarrage du process Node.**
+Une modification de la logique serveur (`server.js`, `certs.js`,
+`catalogue.js`, `multisite.js`, `repoGit.js`) n'a d'effet qu'après
+redémarrage du process :
+```
+cd web/webapp && docker compose restart webapp
+```
+(jamais `--build` : rien n'est figé à l'image, un rebuild ne changerait
+rien que ce redémarrage ne fasse déjà). Vérifié le 11/09 : après une
+modification de `server.js` (retrait du champ `overrides`, cf. `docs/05`),
+le comportement HTTP restait l'ancien tant que le
+conteneur n'avait pas été redémarré — `docker compose restart webapp`
+suffit, confirmé par un appel réel ensuite refusé comme attendu.
+
+**Correspondance avec `generator=<hash>` de `.peaas/generator-version`.**
+Garantie par construction, pas par un mécanisme dédié : le hash est
+`git rev-parse HEAD` du dépôt `web` monté en lecture seule sous `/stack`
+(`GENERATOR_REPO_DIR`), et le code EXÉCUTÉ vient du même disque (montage
+RW `./app:/app`) — même arbre de fichiers des deux côtés, à tout instant.
+`/api/package` refuse (409, D-020) si ce dépôt est sale : un hash ne peut
+donc être inscrit dans une archive que pour un état réellement commité. La
+seule fenêtre de divergence possible est entre un `git commit` et le
+prochain redémarrage du process (server.js en mémoire reste l'ancien code
+un instant) — se referme dès `docker compose restart webapp`.
+
 ## Identifiants
 
 > Aucune valeur par défaut. Saisis à la génération, écrits dans le `.env` de
