@@ -576,6 +576,7 @@ La troisième est celle qui répond le plus directement à la problématique, et
 | **Préparation manuelle introduisant une dépendance de voisinage** | Le PoC fonctionne pour une raison qui n'existera pas en déploiement réel. | Clause d'isolation du contrat, contrôle de relecture des machines. |
 | **Identifiants dans l'archive** | L'archive d'un site contient ses mots de passe d'administration. | Fichier d'environnement en droits restreints, archive traitée comme un secret, aucune valeur par défaut. |
 | **Interface d'administration exposée** | N'importe quel poste du réseau pourrait reconfigurer la fédération. | Interfaces d'administration liées à l'hôte local (D-018). |
+| **Identifiants transmis au générateur** | En clair sur le réseau si l'interface est consultée hors de l'hôte local. | Générateur utilisé en local pour le PoC ; HTTPS requis au-delà. |
 | **Dérive d'horloge** | Erreurs TLS incompréhensibles, typiquement après restauration d'un instantané de VM. | Synchronisation NTP indépendante par site, vérifiée par le script d'installation. |
 | **Générateur modifié entre deux mesures** | La courbe de l'affirmation 2 mélange le gain de la réplication et celui des corrections. | Générateur figé avant le site A, version inscrite dans chaque archive et dans le journal des mesures (D-015). |
 | **Tests qui valident leurs propres hypothèses** | Des tests en simulation passent alors que le broker refuse la configuration. | Tests unitaires présentés comme garantie du générateur, test d'intégration contre un vrai broker comme preuve de fonctionnement. |
@@ -626,6 +627,13 @@ Ce serait le point où le générateur cesse d'être un outil de déploiement po
 - **Sélection réellement hétérogène** des composants par site, poussée plus loin que dans le PoC.
 - **Sites non joignables en entrée** : déploiement sur des réseaux distincts, avec des sites derrière un NAT ou un pare-feu restrictif. C'est la situation réelle en entreprise, écartée du PoC pour se concentrer sur la fédération elle-même. Le messaging s'en accommode — un lien entre brokers est bidirectionnel une fois ouvert — mais les appels d'API entrants demandent un traitement particulier.
 - **Rejeu et cohérence** : si un besoin de vue consolidée apparaît un jour, il ouvre le sujet de la cohérence distribuée, écarté ici en toute connaissance de cause.
+- **Mise à jour d'un site** — hors périmètre (exploitation). Procédure retenue :
+  génération d'un package à jour (identifiants libres), déploiement en parallèle
+  sur une autre machine conforme au contrat, transfert des données au niveau
+  applicatif — export et réimportation des bases, configuration des composants
+  rejouée par les scripts de setup — puis bascule. On ne copie jamais les
+  volumes : ils contiennent les identifiants d'origine et l'état interne des
+  composants, ce qui contredirait D-009.
 
 ---
 

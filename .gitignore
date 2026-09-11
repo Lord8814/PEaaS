@@ -11,11 +11,11 @@ site-profile.yaml
 *.crt
 *.p12
 .claude/settings.local.json
-web/app/node_modules/
 
-# Magasin de secrets du générateur : CA de la fédération + clés/certs de site.
-# Hors dépôt, jamais versionné (cf. D-002). Repointable par PEAAS_CA_DIR.
-web/app/ca-store/
+# Dépôt du générateur (11/09) : /mnt/web est désormais son propre dépôt Git
+# (remote configPEaaS.git), imbriqué mais non déclaré comme sous-module ici
+# (docs/03 § Dépôts). Rien de son contenu ne doit être suivi par CE dépôt.
+/web/
 certs/
 
 # Sorties d'install.sh sur la VM cible (dans l'archive extraite, jamais ici)

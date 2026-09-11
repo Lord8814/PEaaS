@@ -5,6 +5,32 @@ Fichier vivant. Toutes les valeurs concrètes du montage.
 
 # Inventaire technique
 
+## Dépôts
+
+> État constaté le 11/09/2026 (`git rev-parse --show-toplevel` + `git remote -v`
+> dans chacun). Aucun push depuis ce socle : ne rien pousser sans consigne
+> explicite.
+
+| Dépôt | Rôle | Racine Git | Remote | Lien avec les autres |
+|---|---|---|---|---|
+| `/mnt` | Espace de travail : composes de run local, `docs/`, outillage (`upAll`, `hardening-peaas.sh`) | `/mnt` (dépôt autonome) | aucun | Contient `PEaaSrepo/` (sous-arbre suivi comme *gitlink*) et `web/` (dépôt imbriqué, non suivi — voir `.gitignore`) |
+| `/mnt/PEaaSrepo` | Catalogue de produits, topologie, scripts de setup (D-001) | `/mnt/PEaaSrepo` (racine Git propre) | `github.com/Lord8814/PEaaSrepo.git` (une branche de suivi distante existe : `origin/master`, en retard) | Référencé par `/mnt` via un *gitlink* (mode `160000` dans l'index) — **sans `.gitmodules`** : ce n'est pas un sous-module pleinement déclaré, seulement une référence de commit |
+| `/mnt/web` | Générateur (`webapp/app/`) | `/mnt/web` (racine Git propre, créé le 11/09) | `github.com/Lord8814/configPEaaS.git` (pas de branche de suivi distante établie) | **Dépôt imbriqué non déclaré** dans `/mnt` : aucun `.gitmodules`, aucun gitlink — `/mnt` l'ignore désormais entièrement (`.gitignore`) |
+
+Historique récent : `/mnt/web` n'existait pas avant le 11/09 — le code du
+générateur vivait à plat sous `/mnt/web/app/` et était suivi directement par
+`/mnt` (commits `c37126c`, `15f2b98`, `df67779`, `b628efc`, `a7f3a85` — ceux-ci
+restent dans l'historique de `/mnt`, où ils sont pleinement valides pour leur
+date : ils ne sont PAS à rejouer ni à déplacer). Le contenu a été repris à
+l'identique sous `webapp/app/` dans le nouveau dépôt (un seul commit
+`generateur`, sans historique). Les chemins relatifs des tests vers
+`PEaaSrepo/` ont dû être corrigés d'un niveau (`../../PEaaSrepo` →
+`../../../PEaaSrepo`) pour tenir compte du dossier `webapp/` supplémentaire.
+
+Point de vigilance non traité ici (hors périmètre de cette section) : le
+commit initial de `/mnt/web` embarque `webapp/app/node_modules/` — contraire à
+la règle du socle (régénéré par `npm install`, jamais versionné).
+
 ## Plan d'adressage
 
 > La plage Docker est dérivée de l'index (D-005). Chaque site déclare son propre
@@ -96,15 +122,31 @@ Aucune suppression de `*/data/` : le générateur cesse simplement de les lire.
 
 | Flux | Port interne | Port exposé | Liaison | Sens d'ouverture |
 |---|---|---|---|---|
-| Liens entre brokers (DMR, TLS) | | | Toutes interfaces | Index bas → index haut |
+| Liens entre brokers (DMR, TLS) | 55555 (SMF) | 55555 | Toutes interfaces | Index bas → index haut |
 | API entre passerelles | | | Toutes interfaces | Les deux |
-| Consultation base distante | | | Toutes interfaces | Les deux |
-| SEMP (gestion Solace) | | | `127.0.0.1` seulement | Local |
-| Admin API APISIX | | | `127.0.0.1` seulement | Local |
-| etcd | | | Non publié / local | Local |
+| Consultation base distante | 5432 | 5432 | Toutes interfaces | Les deux |
+| SEMP (gestion Solace) | 8080 | 8080 | `127.0.0.1` seulement (D-018) | Local |
+| Admin API APISIX | 9180 | 9180 | `127.0.0.1` seulement (D-018) | Local |
+| etcd | 2379 | — | Non publié du tout | Local |
 
 > Les ports sont portés par le catalogue. Passage sur 443 via passe-plat :
 > ouvert, conditionné à la vérification de l'aiguillage TCP d'APISIX.
+
+**Correction du 11/09 (A4).** La `remoteAddress` du lien DMR visait
+`host_port` du profil de site (443/8443 dans les exemples de `topology.yaml`)
+— un port qui correspond au **futur** point d'entrée applicatif (passe-plat,
+§8.5 de la doc de référence), sur lequel aucun broker Solace n'écoute.
+`solace-dmr.sh` cible désormais le port SMF **du catalogue** (`55555`,
+`DMR_SMF_PORT`/`SOLACE_DMR_SMF_PORT`), le seul sur lequel Solace écoute
+réellement — vérifié contre un vrai broker (`solace-dmr.test.js`,
+`PEAAS_SOLACE_IT=1`, 11/09). `host_port` reste dans le profil pour le passe-plat
+443 à venir, sans plus aucun consommateur aujourd'hui.
+**Reste non résolu** (même inconnue que le rapport tâche 1, limitation 2) :
+le lien est configuré avec `transportTlsEnabled:true` +
+`authenticationScheme:client-certificate`, mais aucun listener SMF **chiffré**
+n'est provisionné sur le port 55555 par le catalogue Solace actuel (pas de
+variable TLS dans son `compose:`) — un lien réel ne passera donc pas à l'état
+*actif* tant que ce provisionnement manque, quel que soit le port visé.
 
 ## Vérifications réseau
 

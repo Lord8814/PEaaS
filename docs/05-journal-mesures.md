@@ -76,3 +76,60 @@ littérales dans tout l'historique (`git log --all -S`, `git rev-list --all | gi
   aucune réf de suivi distante → rien n'indique un push ; URL probablement
   erronée (le sous-module `PEaaSrepo/` n'a, lui, aucun remote). Reco : retirer
   cet `origin`, ne rien y pousser.
+
+### 11/09 — trois bugs latents à la même cause : une chaîne jamais testée bout en bout
+
+Trois défauts trouvés lors de la clôture de la tâche 6, tous du même type : un
+maillon de la chaîne (générateur → fichier livré → composant qui le consomme)
+n'était vérifié qu'à l'un de ses bouts, jamais en bout en bout, donc jamais vu.
+
+- **Clé Admin API APISIX littérale.** Le gabarit `config.yaml` référençait
+  `${APISIX_ADMIN_KEY}` (simple accolade). Le générateur ne fait AUCUNE
+  substitution sur les `fichiers_config` (ils sont copiés tels quels, D-009) ;
+  APISIX, lui, n'interprète que sa propre syntaxe `${{VAR}}` (double accolade).
+  Résultat : la clé de l'Admin API dans l'archive était littéralement la
+  chaîne `"${APISIX_ADMIN_KEY}"`, jamais une vraie valeur. **Pourquoi les tests
+  passaient** : `catalogue.test.js` vérifiait l'absence d'identifiant *en dur*
+  (`doesNotMatch(/password|admin_key.../ )`) — un placeholder textuel n'est pas
+  une valeur en dur, il passait le test sans être fonctionnellement correct.
+  Aucun test ne lisait le contenu résultant de `config.yaml` ni n'appelait
+  l'Admin API avec la clé livrée. Corrigé tâche 6 (syntaxe native APISIX +
+  `environment:` du service).
+- **Admin API/SEMP publiés sur toutes les interfaces malgré D-018.** Le
+  catalogue portait déjà des métadonnées `ports: [{ liaison: local }]`
+  correctes pour ces ports, mais rien ne les appliquait : le texte du bloc
+  `compose:` (la seule chose réellement utilisée par le générateur) listait
+  encore `"9180:9180"` sans préfixe d'adresse. **Pourquoi les tests
+  passaient** : aucun test ne lisait les métadonnées `ports:` ni ne vérifiait
+  la liaison réelle du compose généré — la présence de la métadonnée donnait
+  une fausse impression de contrôle. Corrigé tâche 6.
+- **`solace-dmr.sh` authentifié avec un mot de passe SEMP fixe `admin`.** Le
+  script n'avait aucun chemin de lecture vers `SOLACE_ADMIN_PASSWORD` (le vrai
+  identifiant, posé sur le broker via le catalogue) : `SOLACE_SEMP_PASS`
+  retombait sur `admin` par défaut, sans jamais consulter le `.env` de
+  l'archive. **Pourquoi les tests passaient** : tous les tests unitaires
+  tournent en `--dry-run`, qui n'authentifie jamais réellement (`semp()` ne
+  pose pas l'en-tête `-u` en dry-run) ; le test d'intégration (tâche 1, banc
+  réel) utilisait encore le mot de passe `admin` par défaut du broker, jamais
+  changé sur ce banc — le chemin qui aurait échoué (mot de passe personnalisé)
+  n'a jamais été exercé avant la tâche 6. Corrigé tâche 6.
+- **Port DMR = `host_port` du profil (A4, 11/09).** Même cause encore :
+  `solace-dmr.sh` construisait la `remoteAddress` du lien DMR à partir de
+  `host_port` (443/8443 dans `topology.yaml`), un champ qui désigne en réalité
+  le **futur** port applicatif du passe-plat unique (§8.5/§14 de la doc de
+  référence, jamais implémenté). Aucun broker Solace n'écoute sur ce port ; le
+  lien aurait échoué à toute tentative de connexion réelle. **Pourquoi le
+  test d'intégration (tâche 1) ne l'a pas vu** : il vérifie que les *payloads*
+  sont acceptés par SEMPv2 (schéma, codes retour), jamais que le port qui y
+  figure correspond à un service qui écoute réellement — l'IT teste la forme
+  de la configuration, pas la connectivité du lien. Corrigé : le script cible
+  maintenant le port SMF du catalogue (`55555`), vérifié contre un vrai
+  broker. Reste non résolu, comme en tâche 1 : aucun listener SMF **TLS**
+  n'est provisionné sur ce port (le lien exige `transportTlsEnabled:true`).
+- **Même cause, repérée en tâche 1** : `transportTlsEnabled` absent du premier
+  jet du payload de lien DMR. Le schéma avait été écrit d'après la
+  documentation SEMPv2, jamais vérifié contre un vrai broker avant le test
+  d'intégration — la valeur par défaut de l'API diffère de ce que l'auth
+  `client-certificate` exige. Même symptôme : un maillon non testé bout en
+  bout (payload vs. comportement réel du broker) masqué par des tests qui ne
+  couvraient que la forme, pas l'effet.
