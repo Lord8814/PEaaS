@@ -125,11 +125,18 @@ async function attendrePret() {
   throw new Error("le serveur n'a pas démarré à temps");
 }
 
-async function demanderPackage(site) {
+// Identifiants requis par apisix/solace (D-011) : valeurs fabriquées pour le
+// test, jamais commitées comme un vrai secret, jamais journalisées.
+const IDENTIFIANTS_TEST = {
+  APISIX_ADMIN_KEY: "test-admin-key",
+  SOLACE_ADMIN_PASSWORD: "test-solace-password"
+};
+
+async function demanderPackage(site, identifiants = IDENTIFIANTS_TEST) {
   return fetch(`${BASE}/api/package`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ composants: ["etcd", "apisix", "solace"], site })
+    body: JSON.stringify({ composants: ["etcd", "apisix", "solace"], site, identifiants })
   });
 }
 
@@ -401,6 +408,98 @@ test("intégration : génération multi-site de bout en bout", async t => {
       const blob = extraits[site].key + extraits[site].crt + extraits[site].caCrt;
       assert.ok(!blob.includes(caKey), `${site} : clé CA absente de l'archive`);
     }
+  });
+
+  await t.test("/api/components expose les identifiants requis par composant (UI, D-011)", async () => {
+    const liste = await (await fetch(`${BASE}/api/components`)).json();
+    assert.deepEqual(liste.apisix.identifiants, [
+      { variable: "APISIX_ADMIN_KEY", libelle: "Clé de l'Admin API APISIX" }
+    ]);
+    assert.deepEqual(liste.etcd.identifiants, []);
+  });
+
+  await t.test("identifiant manquant (D-011) : /api/package échoue proprement, aucune archive", async () => {
+    fs.writeFileSync(topoPath, TOPO_OK);
+
+    const res = await demanderPackage("site-a", { APISIX_ADMIN_KEY: "k" }); // SOLACE_ADMIN_PASSWORD manquant
+    assert.equal(res.status, 400);
+    assert.match(res.headers.get("content-type") || "", /json/);
+    const body = await res.json();
+    assert.match(body.erreur, /SOLACE_ADMIN_PASSWORD/);
+    assert.match(body.erreur, /solace/);
+  });
+
+  await t.test("identifiant vide/blanc (D-011) : traité comme manquant", async () => {
+    fs.writeFileSync(topoPath, TOPO_OK);
+
+    const res = await demanderPackage("site-a", {
+      APISIX_ADMIN_KEY: "k",
+      SOLACE_ADMIN_PASSWORD: "   "
+    });
+    assert.equal(res.status, 400);
+    const body = await res.json();
+    assert.match(body.erreur, /SOLACE_ADMIN_PASSWORD/);
+  });
+
+  await t.test(".env : identifiants saisis présents, droits 0600, jamais journalisés", async () => {
+    fs.writeFileSync(topoPath, TOPO_OK);
+
+    const res = await demanderPackage("site-a", {
+      APISIX_ADMIN_KEY: "cle-de-test-9080",
+      SOLACE_ADMIN_PASSWORD: "mdp-de-test-9080"
+    });
+    assert.equal(res.status, 200, stderr);
+    const archive = path.join(dir, "env-identifiants.tar.gz");
+    fs.writeFileSync(archive, Buffer.from(await res.arrayBuffer()));
+
+    const env = execFileSync("tar", ["xzOf", archive, ".env"], { encoding: "utf8" });
+    assert.match(env, /^APISIX_ADMIN_KEY="cle-de-test-9080"$/m);
+    assert.match(env, /^SOLACE_ADMIN_PASSWORD="mdp-de-test-9080"$/m);
+
+    const mode = execFileSync("tar", ["tvf", archive], { encoding: "utf8" })
+      .split("\n")
+      .find(l => l.endsWith(" .env") || l.endsWith("\t.env"));
+    assert.match(mode, /^-rw-------/, `.env pas en 0600 dans l'archive : ${mode}`);
+  });
+
+  await t.test("mono-site (pas de 'site') : .env limité aux identifiants, pas de PEAAS_DOCKER_SUBNET", async () => {
+    const res = await fetch(`${BASE}/api/package`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        composants: ["postgres"],
+        identifiants: { POSTGRES_PASSWORD: "mono-site-pass" }
+      })
+    });
+    assert.equal(res.status, 200, stderr);
+    const archive = path.join(dir, "mono-site-postgres.tar.gz");
+    fs.writeFileSync(archive, Buffer.from(await res.arrayBuffer()));
+
+    const noms = execFileSync("tar", ["tzf", archive], { encoding: "utf8" })
+      .split("\n")
+      .filter(Boolean);
+    assert.ok(noms.includes(".env"), noms.join(" "));
+    assert.ok(!noms.includes("install.sh"), "install.sh est réservé au multisite");
+
+    const env = execFileSync("tar", ["xzOf", archive, ".env"], { encoding: "utf8" });
+    assert.match(env, /^POSTGRES_PASSWORD="mono-site-pass"$/m);
+    assert.doesNotMatch(env, /PEAAS_DOCKER_SUBNET/);
+  });
+
+  await t.test("mono-site sans identifiant requis : pas de .env du tout", async () => {
+    const res = await fetch(`${BASE}/api/package`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ composants: ["etcd"] })
+    });
+    assert.equal(res.status, 200, stderr);
+    const archive = path.join(dir, "mono-site-etcd.tar.gz");
+    fs.writeFileSync(archive, Buffer.from(await res.arrayBuffer()));
+
+    const noms = execFileSync("tar", ["tzf", archive], { encoding: "utf8" })
+      .split("\n")
+      .filter(Boolean);
+    assert.ok(!noms.includes(".env"), noms.join(" "));
   });
 
   await t.test("topology invalide (index dupliqué) : aucune archive, erreur explicite", async () => {

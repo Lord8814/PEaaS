@@ -12,7 +12,8 @@ const {
   validateTopology,
   siteProfile,
   renderSiteProfileYaml,
-  renderSiteEnv
+  renderSiteEnv,
+  renderIdentifiantsEnv
 } = require("./multisite");
 const { issueSiteCert } = require("./certs");
 
@@ -75,6 +76,38 @@ function validerSelection(body, cat) {
   }
 
   return resoudreDependances(brut, cat);
+}
+
+// Valide les identifiants requis par les composants retenus (D-011) : aucune
+// valeur par défaut nulle part, la génération échoue proprement s'il en
+// manque un. Renvoie UNIQUEMENT les variables effectivement requises (jamais
+// le corps brut de la requete) : { <VARIABLE> : <valeur> }.
+function validerIdentifiants(body, choix, cat) {
+  const requis = [];
+  for (const cle of choix) {
+    for (const id of cat[cle].identifiants) requis.push({ composant: cle, ...id });
+  }
+  if (!requis.length) return {};
+
+  const brut = body && body.identifiants;
+  if (brut != null && (typeof brut !== "object" || Array.isArray(brut))) {
+    throw new ErreurClient("Champ 'identifiants' invalide (objet attendu)");
+  }
+
+  const valeurs = {};
+  const manquants = [];
+  for (const r of requis) {
+    const v = brut && brut[r.variable];
+    if (typeof v !== "string" || !v.trim()) {
+      manquants.push(`${r.variable} (${r.composant} : ${r.libelle})`);
+      continue;
+    }
+    valeurs[r.variable] = v;
+  }
+  if (manquants.length) {
+    throw new ErreurClient(`Identifiant(s) manquant(s) : ${manquants.join(", ")}`);
+  }
+  return valeurs;
 }
 
 // Ordre de démarrage : `ordreDemarrage(choix, cat)` (module catalogue) trie
@@ -218,7 +251,14 @@ app.get("/api/components", asyncRoute(async (req, res) => {
   const cat = catalogue();
   const vue = {};
   for (const [nom, d] of Object.entries(cat)) {
-    vue[nom] = { label: d.label, deps: d.deps, description: d.description };
+    vue[nom] = {
+      label: d.label,
+      deps: d.deps,
+      description: d.description,
+      // Identifiants (D-011) : l'UI doit les demander pour chaque composant
+      // sélectionné. Jamais de valeur par défaut ici, seulement le libellé.
+      identifiants: d.identifiants.map(i => ({ variable: i.variable, libelle: i.libelle }))
+    };
   }
   res.json(vue);
 }));
@@ -255,6 +295,11 @@ app.post("/api/compose", asyncRoute(async (req, res) => {
 app.post("/api/package", asyncRoute(async (req, res) => {
   const cat = catalogue();
   const choix = validerSelection(req.body, cat);
+
+  // Identifiants (D-011) : verifies AVANT d'ouvrir le flux, comme la
+  // topologie ci-dessous. Aucune valeur par defaut : la generation echoue
+  // proprement (JSON, pas d'archive a moitie ecrite) s'il en manque un.
+  const identifiants = validerIdentifiants(req.body, choix, cat);
 
   // Resoudre le profil de site AVANT d'ouvrir le flux : une topologie
   // invalide doit remonter en JSON, pas couper une archive a moitie ecrite.
@@ -311,12 +356,21 @@ app.post("/api/package", asyncRoute(async (req, res) => {
   archive.pipe(res);
   archive.append(genererCompose(choix, !!profil, cat), { name: "docker-compose.yaml" });
 
+  // .env : identifiants saisis a la generation (D-011, toujours present des
+  // qu'un composant retenu en requiert un) + plage Docker/nom de noeud DMR du
+  // site cible (multisite uniquement). Droits restreints des l'archive :
+  // install.sh les reprend en 0600 mais l'archive ne doit rien livrer de plus
+  // permissif. Jamais journalise (cf. le seul console.log ci-dessus, qui ne
+  // liste que les noms de composants).
+  const envTexte = (profil ? renderSiteEnv(profil) : "") + renderIdentifiantsEnv(identifiants);
+  if (envTexte) {
+    archive.append(envTexte, { name: ".env", mode: 0o600 });
+  }
+
   // Fichiers propres au site cible. Le docker-compose.yaml, lui, reste
   // identique pour tous les sites.
-  //   - .env            : plage Docker, lue par `docker compose` au demarrage
   //   - site-profile.yaml : identite reseau du site + vue du maillage complet
   if (profil) {
-    archive.append(renderSiteEnv(profil), { name: ".env" });
     archive.append(renderSiteProfileYaml(profil), { name: "site-profile.yaml" });
 
     // Materiel mTLS. La cle privee de la CA n'y figure JAMAIS, seulement

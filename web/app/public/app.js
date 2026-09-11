@@ -111,9 +111,62 @@ function appliquerDependances() {
     c.disabled = true;
     $("note-" + dep).textContent = "(requis)";
   });
+
+  afficherIdentifiants();
 }
 
 const selection = () => [...document.querySelectorAll("input:checked")].map(c => c.value);
+
+// ======================================================================
+//  Identifiants requis par la selection (D-011) — jamais de valeur par
+//  defaut : un champ par variable, tant qu'aucun composant qui en a besoin
+//  n'est selectionne, la section reste masquee.
+// ======================================================================
+
+function identifiantsRequis() {
+  const map = new Map(); // variable -> libelle
+  selection().forEach(cle => {
+    (composants[cle].identifiants || []).forEach(id => {
+      if (!map.has(id.variable)) map.set(id.variable, id.libelle);
+    });
+  });
+  return map;
+}
+
+function afficherIdentifiants() {
+  const bloc = $("identifiants");
+  const conteneur = $("identifiants-champs");
+  const requis = identifiantsRequis();
+
+  // Conserve la saisie deja faite pour une variable encore requise apres
+  // un changement de selection.
+  const saisis = new Map(
+    [...conteneur.querySelectorAll("input")].map(i => [i.dataset.variable, i.value])
+  );
+
+  conteneur.innerHTML = "";
+  bloc.classList.toggle("cache", requis.size === 0);
+
+  requis.forEach((libelle, variable) => {
+    const label = document.createElement("label");
+    label.innerHTML =
+      `${echapper(libelle)} <code>${echapper(variable)}</code>
+       <input type="password" autocomplete="new-password" data-variable="${echapper(variable)}">`;
+    conteneur.appendChild(label);
+    if (saisis.has(variable)) label.querySelector("input").value = saisis.get(variable);
+  });
+}
+
+// { <VARIABLE> : <valeur saisie> } — uniquement les champs actuellement
+// affiches (donc requis par la selection courante), valeurs non vides.
+function valeursIdentifiants() {
+  const v = {};
+  document.querySelectorAll("#identifiants-champs input").forEach(i => {
+    const val = i.value.trim();
+    if (val) v[i.dataset.variable] = val;
+  });
+  return v;
+}
 
 // ======================================================================
 //  Multi-site : selecteur de site cible
@@ -158,7 +211,7 @@ function majSite() {
 // Corps commun aux requetes /api/compose et /api/package : selection de
 // composants + (si multi-site) site cible et surcharges du formulaire.
 function corpsGeneration() {
-  const body = { composants: selection() };
+  const body = { composants: selection(), identifiants: valeursIdentifiants() };
   const sel = $("siteCible");
 
   if (!$("multisite").classList.contains("cache") && sel.value) {

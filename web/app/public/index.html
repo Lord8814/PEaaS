@@ -20,6 +20,16 @@
   <p>Selectionnez les composants a deployer :</p>
   <ul id="liste"></ul>
 
+  <fieldset id="identifiants" class="cache">
+    <legend>Identifiants requis</legend>
+    <p class="aide">
+      Saisis ici, jamais de valeur par defaut (D-011). Ecrits dans le
+      <code>.env</code> de l'archive (droits 0600), jamais journalises ni
+      conserves par le generateur.
+    </p>
+    <div id="identifiants-champs" class="controles"></div>
+  </fieldset>
+
   <fieldset id="multisite" class="cache">
     <legend>Site cible (multi-site)</legend>
     <p class="aide">

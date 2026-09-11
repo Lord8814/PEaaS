@@ -463,6 +463,27 @@ function renderSiteEnv(profile) {
   );
 }
 
+// Échappe une valeur pour une ligne `.env` (format lu par `docker compose`) :
+// toujours entre guillemets, `\` et `"` échappés. Ne fait AUCUNE hypothèse
+// sur le contenu (identifiant saisi à la génération, D-011) : jamais de
+// valeur par défaut ici.
+function envQuote(valeur) {
+  return '"' + String(valeur).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+}
+
+// Section `.env` portant les identifiants saisis à la génération (D-011).
+// `identifiants` : { <VARIABLE> : <valeur> }. Une ligne par variable, triée
+// pour un rendu stable (tests, relecture).
+function renderIdentifiantsEnv(identifiants) {
+  const cles = Object.keys(identifiants || {}).sort();
+  if (!cles.length) return "";
+  return (
+    "# Identifiants saisis à la génération (D-011) — jamais de valeur par défaut.\n" +
+    cles.map(k => `${k}=${envQuote(identifiants[k])}`).join("\n") +
+    "\n"
+  );
+}
+
 module.exports = {
   DOCKER_BLOCK,
   DEFAULT_DMR_CLUSTER,
@@ -475,5 +496,6 @@ module.exports = {
   siteProfile,
   renderSiteProfileYaml,
   renderSiteEnv,
+  renderIdentifiantsEnv,
   ErreurTopologie
 };

@@ -12,6 +12,7 @@ const {
   siteProfile,
   renderSiteProfileYaml,
   renderSiteEnv,
+  renderIdentifiantsEnv,
   ErreurTopologie
 } = require("./multisite");
 
@@ -335,4 +336,20 @@ test("renderSiteEnv : plage Docker + nom de nœud DMR du site", () => {
   const a = renderSiteEnv(siteProfile(topoRef(), "site-a", {}));
   assert.match(a, /^PEAAS_DOCKER_SUBNET=10\.90\.0\.0\/24$/m);
   assert.match(a, /^SITE_DMR_NODE_NAME=site-a$/m);
+});
+
+test("renderIdentifiantsEnv : quote les valeurs, ordre stable, vide -> chaîne vide", () => {
+  assert.equal(renderIdentifiantsEnv({}), "");
+  assert.equal(renderIdentifiantsEnv(undefined), "");
+
+  const texte = renderIdentifiantsEnv({
+    SOLACE_ADMIN_PASSWORD: 'a"b\\c',
+    APISIX_ADMIN_KEY: "simple"
+  });
+  // ordre alphabetique, une seule ligne de commentaire, valeurs echappees
+  assert.match(texte, /^APISIX_ADMIN_KEY="simple"$/m);
+  assert.match(texte, /^SOLACE_ADMIN_PASSWORD="a\\"b\\\\c"$/m);
+  assert.ok(
+    texte.indexOf("APISIX_ADMIN_KEY") < texte.indexOf("SOLACE_ADMIN_PASSWORD")
+  );
 });

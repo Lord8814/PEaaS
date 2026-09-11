@@ -174,4 +174,57 @@ test("catalogue réel : 8 produits, noms du socle (D-009)", () => {
       `${nom} : identifiant en dur`
     );
   }
+
+  // Aucun identifiant declare (D-011) n'a de valeur par defaut : le nom de
+  // la variable seul dans le compose (${VAR}), jamais ${VAR:-x}.
+  for (const [nom, d] of Object.entries(cat)) {
+    for (const id of d.identifiants) {
+      assert.doesNotMatch(
+        d.composeService,
+        new RegExp(`\\$\\{${id.variable}:-`),
+        `${nom} : ${id.variable} a un repli par defaut`
+      );
+      assert.match(
+        d.composeService,
+        new RegExp(`\\$\\{${id.variable}\\}`),
+        `${nom} : ${id.variable} absent du compose`
+      );
+    }
+  }
+});
+
+test("D-018 : SEMP Solace, Admin API/metrics APISIX et etcd liés à 127.0.0.1 seuls", () => {
+  const cat = chargerCatalogue(RACINE_REELLE);
+
+  assert.match(cat.apisix.composeService, /"127\.0\.0\.1:9180:9180"/);
+  assert.match(cat.apisix.composeService, /"127\.0\.0\.1:9091:9091"/);
+  // Le point d'entree applicatif, lui, reste public.
+  assert.match(cat.apisix.composeService, /"9080:9080"/);
+  assert.doesNotMatch(cat.apisix.composeService, /(?<!127\.0\.0\.1:)"9180:9180"/);
+
+  assert.match(cat.solace.composeService, /"127\.0\.0\.1:8080:8080"/);
+  // Les ports inter-sites (messagerie) restent exposés (D-018 ne les cite pas).
+  assert.match(cat.solace.composeService, /"55555:55555"/);
+  assert.doesNotMatch(cat.solace.composeService, /(?<!127\.0\.0\.1:)"8080:8080"/);
+
+  // etcd : jamais consulté depuis l'hôte, aucun port publié du tout.
+  assert.doesNotMatch(cat.etcd.composeService, /ports:/);
+  assert.doesNotMatch(cat.etcd.composeService, /2379:2379/);
+  assert.deepEqual(cat.etcd.ports, []);
+});
+
+test("chaîne APISIX_ADMIN_KEY : .env -> environment du service -> config.yaml (D-011)", () => {
+  const cat = chargerCatalogue(RACINE_REELLE);
+
+  // service apisix : reçoit la variable depuis le .env de l'archive.
+  assert.match(cat.apisix.composeService, /environment:\s*\n\s+APISIX_ADMIN_KEY:\s*\$\{APISIX_ADMIN_KEY\}/);
+
+  // gabarit config.yaml : syntaxe d'interpolation NATIVE d'APISIX (double
+  // accolade), résolue par APISIX lui-même au démarrage — jamais réécrite
+  // par le générateur (fichiers_config copiés tels quels, D-009).
+  const cfg = cat.apisix.fichiersConfig.find(f => f.montage.endsWith("config.yaml"));
+  assert.ok(cfg, "gabarit config.yaml introuvable");
+  const texte = fs.readFileSync(cfg.gabaritPath, "utf8");
+  assert.match(texte, /key:\s*\$\{\{APISIX_ADMIN_KEY\}\}/);
+  assert.doesNotMatch(texte, /key:\s*\$\{APISIX_ADMIN_KEY\}(?!\})/, "simple accolade résiduelle");
 });

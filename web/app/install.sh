@@ -83,6 +83,10 @@ for f in docker-compose.yaml .env; do
   [ -f "$f" ] || mourir 2 "fichier '$f' absent : lancez le script depuis le dossier ou l'archive a ete extraite."
 done
 [ -d certs ] || mourir 2 "dossier 'certs/' absent : archive incomplete."
+# .env porte les identifiants saisis a la generation (D-011) : droits
+# restreints des l'installation, quels que soient ceux livres par l'archive
+# ou herites de l'extraction du tar.
+chmod 0600 .env 2>/dev/null || avert ".env : chmod 0600 impossible (pas proprietaire ?)."
 SUBNET="$(sed -n 's/^PEAAS_DOCKER_SUBNET=//p' .env | head -n1 | tr -d '"'\''[:space:]')"
 [ -n "$SUBNET" ] || mourir 2 ".env ne definit pas PEAAS_DOCKER_SUBNET."
 ok "dossier d'installation : $(pwd)"

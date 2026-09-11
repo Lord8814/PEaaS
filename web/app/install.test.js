@@ -121,6 +121,10 @@ test("install.sh : 1er passage OK, 2e passage idempotent (reseau Docker)", () =>
   // certs stagés hors du config/ (livré en lecture seule)
   assert.ok(fs.existsSync(path.join(dir, "apisix", "tls", "site.key.pem")));
 
+  // .env porte les identifiants (D-011) : droits restreints après installation.
+  const modeEnv = fs.statSync(path.join(dir, ".env")).mode & 0o777;
+  assert.equal(modeEnv, 0o600, `.env : droits ${modeEnv.toString(8)}, attendu 600`);
+
   const r2 = lancer(dir, env);
   assert.equal(r2.code, 0, r2.stderr);
   assert.match(r2.stdout, /reseau 'peaas-test' deja present.*reutilise/);

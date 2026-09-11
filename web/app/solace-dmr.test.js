@@ -131,6 +131,28 @@ test("unit/dry-run : appels SEMP de base (cert serveur, CA, cluster)", () => {
   assert.match(out, /"dmrClusterName":"peaas","enabled":true/);
 });
 
+test("unit/dry-run : mot de passe SEMP lu dans SOLACE_ADMIN_PASSWORD du .env (D-011)", () => {
+  const dir = bac(PROFIL_A);
+  // Sans .env ni SOLACE_SEMP_PASS : repli historique (dry-run / bancs de test).
+  let out = dryRun(dir);
+  assert.match(out, /mot de passe : defaut 'admin'/);
+
+  // .env de l'archive (identifiant saisi a la generation) : source utilisee,
+  // jamais la valeur elle-meme dans la sortie.
+  fs.writeFileSync(path.join(dir, ".env"), 'SOLACE_ADMIN_PASSWORD="secret-genere"\n');
+  out = dryRun(dir);
+  assert.match(out, /mot de passe : \.env \(SOLACE_ADMIN_PASSWORD\)/);
+  assert.doesNotMatch(out, /secret-genere/);
+
+  // SOLACE_SEMP_PASS explicite reste prioritaire sur le .env.
+  out = execFileSync(
+    "bash",
+    [SCRIPT, "--dry-run", "--profile", "site-profile.yaml", "--tls-dir", "solace/tls"],
+    { cwd: dir, encoding: "utf8", env: { ...process.env, SOLACE_SEMP_PASS: "depuis-env" } }
+  );
+  assert.match(out, /mot de passe : argument ou variable d'environnement SOLACE_SEMP_PASS/);
+});
+
 test("unit/dry-run : chaque lien est externe, mTLS, auth par certificat client", () => {
   const out = dryRun(bac(PROFIL_A));
   for (const node of ["site-b", "site-c"]) {
