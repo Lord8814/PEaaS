@@ -142,7 +142,8 @@ Aucune suppression de `*/data/` : le générateur cesse simplement de les lire.
 
 | Flux | Port interne | Port exposé | Liaison | Sens d'ouverture |
 |---|---|---|---|---|
-| Liens entre brokers (DMR, TLS) | 55555 (SMF) | 55555 | Toutes interfaces | Index bas → index haut |
+| Liens entre brokers (DMR, TLS) | 55443 (SMF/TLS) | 55443 | Toutes interfaces | Index bas → index haut |
+| Messagerie SMF en clair | 55555 | `127.0.0.1` | Local (aucun consommateur inter-sites) | Local |
 | API entre passerelles | | | Toutes interfaces | Les deux |
 | Consultation base distante | 5432 | 5432 | Toutes interfaces | Les deux |
 | SEMP (gestion Solace) | 8080 | 8080 | `127.0.0.1` seulement (D-018) | Local |
@@ -152,21 +153,27 @@ Aucune suppression de `*/data/` : le générateur cesse simplement de les lire.
 > Les ports sont portés par le catalogue. Passage sur 443 via passe-plat :
 > ouvert, conditionné à la vérification de l'aiguillage TCP d'APISIX.
 
-**Correction du 11/09 (A4).** La `remoteAddress` du lien DMR visait
-`host_port` du profil de site (443/8443 dans les exemples de `topology.yaml`)
-— un port qui correspond au **futur** point d'entrée applicatif (passe-plat,
-§8.5 de la doc de référence), sur lequel aucun broker Solace n'écoute.
-`solace-dmr.sh` cible désormais le port SMF **du catalogue** (`55555`,
-`DMR_SMF_PORT`/`SOLACE_DMR_SMF_PORT`), le seul sur lequel Solace écoute
-réellement — vérifié contre un vrai broker (`solace-dmr.test.js`,
-`PEAAS_SOLACE_IT=1`, 11/09). `host_port` reste dans le profil pour le passe-plat
-443 à venir, sans plus aucun consommateur aujourd'hui.
+**Correction du 11/09 (A4, en deux temps).** La `remoteAddress` du lien DMR
+visait `host_port` du profil de site (443/8443 dans les exemples de
+`topology.yaml`) — un port qui correspond au **futur** point d'entrée
+applicatif (passe-plat, §8.5 de la doc de référence) ; ce champ est renommé
+`passthrough_port` et n'est plus lu par `solace-dmr.sh`. Une première
+correction avait pointé vers le port SMF **du catalogue** (`55555`), mais
+c'est le SMF **en clair** — le lien exige `transportTlsEnabled:true` +
+`authenticationScheme:client-certificate`, donc un port **TLS**. Port retenu
+et vérifié : **55443** (`serviceSmfTlsListenPort` par défaut du broker,
+confirmé par `GET /SEMP/v2/config` contre un vrai broker), exposé toutes
+interfaces (D-018 ne s'applique pas aux flux inter-sites) ; `55555` n'est
+plus exposé qu'en local, sans consommateur inter-sites. Le certificat serveur
+du site était déjà poussé par `solace-dmr.sh` (étape 1,
+`tlsServerCertContent`) ; son effet réel — un port TLS qui répond et présente
+ce certificat — est désormais vérifié contre un vrai broker :
+`openssl s_client -connect <host>:55443 -showcerts` présente exactement le
+certificat de site attendu (automatisé, `solace-dmr.test.js`,
+`PEAAS_SOLACE_IT=1`).
 **Reste non résolu** (même inconnue que le rapport tâche 1, limitation 2) :
-le lien est configuré avec `transportTlsEnabled:true` +
-`authenticationScheme:client-certificate`, mais aucun listener SMF **chiffré**
-n'est provisionné sur le port 55555 par le catalogue Solace actuel (pas de
-variable TLS dans son `compose:`) — un lien réel ne passera donc pas à l'état
-*actif* tant que ce provisionnement manque, quel que soit le port visé.
+le lien passe réellement *actif* en mTLS entre deux brokers réels, ce qui
+exige un second broker faisant confiance à la même CA de fédération.
 
 ## Vérifications réseau
 

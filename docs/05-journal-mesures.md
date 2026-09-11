@@ -113,19 +113,41 @@ n'était vérifié qu'à l'un de ses bouts, jamais en bout en bout, donc jamais 
   réel) utilisait encore le mot de passe `admin` par défaut du broker, jamais
   changé sur ce banc — le chemin qui aurait échoué (mot de passe personnalisé)
   n'a jamais été exercé avant la tâche 6. Corrigé tâche 6.
-- **Port DMR = `host_port` du profil (A4, 11/09).** Même cause encore :
-  `solace-dmr.sh` construisait la `remoteAddress` du lien DMR à partir de
-  `host_port` (443/8443 dans `topology.yaml`), un champ qui désigne en réalité
-  le **futur** port applicatif du passe-plat unique (§8.5/§14 de la doc de
-  référence, jamais implémenté). Aucun broker Solace n'écoute sur ce port ; le
-  lien aurait échoué à toute tentative de connexion réelle. **Pourquoi le
-  test d'intégration (tâche 1) ne l'a pas vu** : il vérifie que les *payloads*
-  sont acceptés par SEMPv2 (schéma, codes retour), jamais que le port qui y
-  figure correspond à un service qui écoute réellement — l'IT teste la forme
-  de la configuration, pas la connectivité du lien. Corrigé : le script cible
-  maintenant le port SMF du catalogue (`55555`), vérifié contre un vrai
-  broker. Reste non résolu, comme en tâche 1 : aucun listener SMF **TLS**
-  n'est provisionné sur ce port (le lien exige `transportTlsEnabled:true`).
+- **Port DMR = `host_port` du profil, et port SMF en clair au lieu de
+  SMF/TLS (A4, corrigé en deux temps le 11/09).** `solace-dmr.sh` construisait
+  la `remoteAddress` du lien DMR à partir de `host_port` (443/8443 dans
+  `topology.yaml`), un champ qui désigne en réalité le **futur** port du
+  passe-plat unique (§8.5/§14 de la doc de référence, jamais implémenté) —
+  aucun broker Solace n'écoute dessus. Premier correctif (revu ensuite) :
+  pointer vers le port SMF **du catalogue** — mais `55555` est le SMF **en
+  clair**, alors que le lien exige `transportTlsEnabled:true` +
+  `authenticationScheme:client-certificate` : un port TLS est requis. Le
+  certificat serveur du site (SAN DNS + IP, déjà présent dans `certs/`) était
+  bien poussé par `solace-dmr.sh` (étape 1, `tlsServerCertContent`, appel déjà
+  présent avant cette tâche) — mais cet appel charge le certificat TLS
+  **broker-wide** ; il n'active rien sur le port SMF en clair, qui ne parle
+  jamais TLS quoi qu'il arrive. Personne n'avait donc vérifié que ce
+  chargement rendait bien un port TLS actif, puisque DMR ne visait aucun port
+  TLS. Corrigé : le catalogue expose désormais `55443` (port SMF/TLS par
+  défaut du broker, `serviceSmfTlsListenPort`, confirmé par
+  `GET /SEMP/v2/config` sur un vrai broker) toutes interfaces (D-018 ne
+  s'applique pas aux flux inter-sites) ; `55555` (SMF en clair, aucun
+  consommateur inter-sites) n'est plus exposé qu'en local. `solace-dmr.sh`
+  cible `55443`. Vérifié contre un vrai broker, à la fois côté SEMPv2
+  (`remoteAddress` reconciliée sur `55443`) et côté TLS réel
+  (`openssl s_client -connect localhost:55443 -showcerts` après le rejeu du
+  script : le port répond en TLS et présente EXACTEMENT le certificat de
+  site poussé — automatisé dans `solace-dmr.test.js`,
+  `PEAAS_SOLACE_IT=1`). `host_port` du profil est renommé `passthrough_port`
+  et n'est plus lu du tout par `solace-dmr.sh`. **Pourquoi aucun test ne l'a
+  détecté avant** : le test d'intégration de la tâche 1 vérifie que les
+  *payloads* SEMPv2 sont acceptés (schéma, codes retour), jamais qu'un
+  service écoute réellement derrière le port inscrit dans la configuration,
+  ni que le certificat chargé produit un port TLS effectivement actif —
+  l'IT testait la forme de la configuration, pas la connectivité ni l'effet
+  du chargement du certificat. Reste non résolu, comme en tâche 1 : le lien
+  passe réellement *actif* en mTLS entre deux brokers réels (exige un second
+  broker qui fasse confiance à la même CA de fédération).
 - **Même cause, repérée en tâche 1** : `transportTlsEnabled` absent du premier
   jet du payload de lien DMR. Le schéma avait été écrit d'après la
   documentation SEMPv2, jamais vérifié contre un vrai broker avant le test
