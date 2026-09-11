@@ -2,8 +2,10 @@
 
 // Tests des scripts de configuration neutre du socle (D-010) :
 // PEaaSrepo/scripts/setup/{apisix.sh,postgres.sh}. On couvre le --dry-run
-// (aucun effet de bord) et le comportement non bloquant quand un prérequis
-// manque. Le rejeu contre de vrais conteneurs est hors CI.
+// (aucun effet de bord) et les trois issues attendues d'un script de setup :
+// sauté (composant/script absent, code 0), appliqué (code 0), impossible
+// (identifiant/clé manquant, code != 0 — ex. apisix.sh sans APISIX_ADMIN_KEY).
+// Le rejeu contre de vrais conteneurs est hors CI.
 //
 //   node --test setup-scripts.test.js
 
@@ -32,11 +34,11 @@ test("apisix.sh --dry-run : imprime le PUT de la route de santé, aucun appel", 
   assert.match(r.stdout, /X-API-KEY: k-test/);
 });
 
-test("apisix.sh : clé absente -> avertissement, code 0 (non bloquant)", () => {
+test("apisix.sh : clé absente -> configuration impossible, code non nul", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "peaas-apx-"));
   const r = run("apisix.sh", [], { cwd: dir, env: { ...process.env, APISIX_ADMIN_KEY: "" } });
   fs.rmSync(dir, { recursive: true, force: true });
-  assert.equal(r.code, 0, r.stderr);
+  assert.notEqual(r.code, 0);
   assert.match(r.stderr, /APISIX_ADMIN_KEY absent/);
 });
 
@@ -57,6 +59,28 @@ test("postgres.sh --dry-run : imprime le SQL neutre idempotent, aucun psql", () 
   assert.match(r.stdout, /ON CONFLICT \(cle\) DO UPDATE/);
   // schéma neutre : aucune table métier
   assert.doesNotMatch(r.stdout, /ticket|caisse|commande/i);
+  // ni site_id ni generator_version sans profil/fichier a lire
+  assert.doesNotMatch(r.stdout, /site_id|generator_version/);
+});
+
+test("postgres.sh --dry-run : site_id lu dans site-profile.yaml", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "peaas-pg-"));
+  fs.writeFileSync(path.join(dir, "site-profile.yaml"), 'site:\n  id: "site-a"\n  index: 1\n');
+  const r = run("postgres.sh", ["--dry-run"], { cwd: dir });
+  fs.rmSync(dir, { recursive: true, force: true });
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /\('site_id', 'site-a'\)/);
+  assert.doesNotMatch(r.stdout, /generator_version/);
+});
+
+test("postgres.sh --dry-run : generator_version lue si .peaas/generator-version present", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "peaas-pg-"));
+  fs.mkdirSync(path.join(dir, ".peaas"));
+  fs.writeFileSync(path.join(dir, ".peaas", "generator-version"), "2026.09.10\n");
+  const r = run("postgres.sh", ["--dry-run"], { cwd: dir });
+  fs.rmSync(dir, { recursive: true, force: true });
+  assert.equal(r.code, 0, r.stderr);
+  assert.match(r.stdout, /\('generator_version', '2026\.09\.10'\)/);
 });
 
 test("les deux scripts : --help sort proprement (code 0)", () => {
