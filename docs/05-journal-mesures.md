@@ -183,3 +183,24 @@ n'était vérifié qu'à l'un de ses bouts, jamais en bout en bout, donc jamais 
   référencé divergeait silencieusement du vrai contenu de `PEaaSrepo/` à
   chaque avancée de ce dépôt. Retiré (`git rm --cached`) et ignoré, comme
   `web/` (docs/03 §Dépôts).
+- **Contrôle de droits du magasin CA (D-006) outrepassé par root, non
+  détecté à l'écriture du contrôle lui-même.** `verifierMagasinCa()`
+  (`certs.js`) teste l'accessibilité en écriture de `PEAAS_CA_DIR` avant de
+  démarrer — écrit et d'abord validé en croyant le conteneur non-root. En
+  réalité `webapp` tournait encore en root (aucun `user:` dans le compose à
+  ce moment) : root outrepasse les droits Unix (0700, `lord`), donc le
+  contrôle réussissait même quand `/srv/peaas-ca` n'existait pas encore et
+  avait été auto-créé par Docker en `root:root 0755` (bind mount vers une
+  source absente) — exactement le cas que le contrôle devait refuser.
+  **Pourquoi ça n'a pas été détecté à l'écriture** : le contrôle a d'abord
+  été testé par les tests unitaires (`certs.test.js`, process Node direct,
+  toujours exécuté en utilisateur `lord`, jamais root) et par un appel
+  manuel au conteneur déjà en place — sans re-belier le cas racine du
+  problème (conteneur frais, mount absent). Repéré en testant le scénario
+  complet en conditions réelles (rebuild + recreate) : le conteneur
+  démarrait sans erreur alors que `/srv/peaas-ca` venait d'être auto-créé en
+  root. Corrigé : `user:` ajouté au compose (uid:gid du propriétaire du
+  magasin, fourni par variable d'environnement — jamais en dur), qui rend
+  le contrôle réellement opposant. Revérifié en conditions réelles après
+  correction : `chmod 500` sur le magasin → boucle de redémarrage avec le
+  message d'erreur ; droits restaurés → redémarre.
