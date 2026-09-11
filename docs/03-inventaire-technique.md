@@ -13,9 +13,17 @@ Fichier vivant. Toutes les valeurs concrètes du montage.
 
 | Dépôt | Rôle | Racine Git | Remote | Lien avec les autres |
 |---|---|---|---|---|
-| `/mnt` | Espace de travail : composes de run local, `docs/`, outillage (`upAll`, `hardening-peaas.sh`) | `/mnt` (dépôt autonome) | aucun | Contient `PEaaSrepo/` (sous-arbre suivi comme *gitlink*) et `web/` (dépôt imbriqué, non suivi — voir `.gitignore`) |
-| `/mnt/PEaaSrepo` | Catalogue de produits, topologie, scripts de setup (D-001) | `/mnt/PEaaSrepo` (racine Git propre) | `github.com/Lord8814/PEaaSrepo.git` (une branche de suivi distante existe : `origin/master`, en retard) | Référencé par `/mnt` via un *gitlink* (mode `160000` dans l'index) — **sans `.gitmodules`** : ce n'est pas un sous-module pleinement déclaré, seulement une référence de commit |
-| `/mnt/web` | Générateur (`webapp/app/`) | `/mnt/web` (racine Git propre, créé le 11/09) | `github.com/Lord8814/configPEaaS.git` (pas de branche de suivi distante établie) | **Dépôt imbriqué non déclaré** dans `/mnt` : aucun `.gitmodules`, aucun gitlink — `/mnt` l'ignore désormais entièrement (`.gitignore`) |
+| `/mnt` | Espace de travail : composes de run local, `docs/`, outillage (`upAll`, `hardening-peaas.sh`) | `/mnt` (dépôt autonome) | aucun | `PEaaSrepo/` et `web/` tous deux ignorés (`.gitignore`) — trois dépôts indépendants, aucun sous-module déclaré |
+| `/mnt/PEaaSrepo` | Catalogue de produits, topologie, scripts de setup (D-001) | `/mnt/PEaaSrepo` (racine Git propre) | `github.com/Lord8814/PEaaSrepo.git` (une branche de suivi distante existe : `origin/master`, en retard) | Ignoré par `/mnt` |
+| `/mnt/web` | Générateur (`webapp/app/`) | `/mnt/web` (racine Git propre, créé le 11/09) | `github.com/Lord8814/configPEaaS.git` (pas de branche de suivi distante établie) | Ignoré par `/mnt` |
+
+**Correction du 11/09 (point 6 du lot correctif).** `/mnt` suivait encore
+`PEaaSrepo/` comme *gitlink* nu (mode `160000` dans l'index, sans
+`.gitmodules` — pas un sous-module pleinement déclaré, seulement une
+référence de commit figée au moment du dernier `git add PEaaSrepo` sur
+`/mnt`, jamais mise à jour depuis). `git rm --cached PEaaSrepo` + entrée
+`/PEaaSrepo/` dans `.gitignore` (même traitement que `/web/`) : les trois
+dépôts sont maintenant symétriquement indépendants.
 
 Historique récent : `/mnt/web` n'existait pas avant le 11/09 — le code du
 générateur vivait à plat sous `/mnt/web/app/` et était suivi directement par

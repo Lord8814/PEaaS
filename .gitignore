@@ -18,6 +18,12 @@ site-profile.yaml
 /web/
 certs/
 
+# Dépôt du socle (D-001) : PEaaSrepo/ est son propre dépôt Git (remote
+# PEaaSrepo.git). Il était suivi ici comme gitlink nu (mode 160000, sans
+# .gitmodules) — retiré : trois dépôts indépendants, aucun sous-module
+# déclaré (docs/03 § Dépôts).
+/PEaaSrepo/
+
 # Sorties d'install.sh sur la VM cible (dans l'archive extraite, jamais ici)
 docker-compose.override.yml
 */tls/
