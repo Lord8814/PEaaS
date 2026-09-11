@@ -202,6 +202,20 @@ exige un second broker faisant confiance à la même CA de fédération.
 | Certificat site B | archive B, `certs/` | Générateur | DNS + nœud DMR + IP | |
 | Certificat site C | archive C, `certs/` | Générateur | DNS + nœud DMR + IP | |
 
+**`PEAAS_CA_DIR` (contrôle du 11/09, point 1 du lot correctif).** Non défini
+dans `webapp/compose.yaml` : résolu par défaut à `<__dirname>/ca-store`
+(`certs.js`), donc relatif à l'emplacement du code dans le conteneur. Le
+déplacement du code (`web/app/` → `web/webapp/app/`, docs/03 §Dépôts) a
+changé ce défaut, mais **aucune CA n'existe encore sur le disque**
+(`ca-store` absent de tout l'arbre `/mnt`, aucun conteneur ne l'ayant
+encore générée) : rien n'a donc été recréé silencieusement à cette
+occasion. Historique de `/mnt` (toutes branches, avant et après le
+11/09) contrôlé : aucune trace de `ca-store`, `*.key.pem` ni `.env` —
+l'exclusion (`/mnt/.gitignore` : `**/.env`, `*.pem`, `*.key`, `*.crt`,
+`*.p12`, `/web/`) a tenu même du temps où le code du générateur était
+suivi à plat par `/mnt`. Le dépôt `web`, lui, n'avait **aucun**
+`.gitignore` avant ce contrôle — corrigé (`ca-store/` ajouté).
+
 ## Identifiants
 
 > Aucune valeur par défaut. Saisis à la génération, écrits dans le `.env` de

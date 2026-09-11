@@ -155,3 +155,31 @@ n'était vérifié qu'à l'un de ses bouts, jamais en bout en bout, donc jamais 
   `client-certificate` exige. Même symptôme : un maillon non testé bout en
   bout (payload vs. comportement réel du broker) masqué par des tests qui ne
   couvraient que la forme, pas l'effet.
+- **Conteneur `webapp` monté sur un chemin obsolète après la réorganisation
+  des dépôts (11/09, revue post-A4).** `webapp/compose.yaml` pointait déjà
+  correctement vers `./app` (donc `web/webapp/app/`), mais le conteneur en
+  place au moment du contrôle avait été démarré AVANT le déplacement du code
+  (`web/app/` → `web/webapp/app/`) et n'avait jamais été recréé :
+  `docker inspect` montrait un bind mount vers `/mnt/web/app`, chemin devenu
+  vide, dans lequel le `npm install` du démarrage recréait un
+  `package-lock.json` orphelin, appartenant à `root`. **Pourquoi aucun test
+  ne l'a détecté** : aucun test ne tourne contre le conteneur réel — tous
+  démarrent `server.js` en sous-processus Node directement, en contournant
+  Docker et son montage. Corrigé : conteneur reconstruit et recréé depuis le
+  compose actuel (mount vérifié : `/mnt/web/webapp/app`) ; `web/app/` ignoré
+  côté dépôt (ne doit plus exister).
+- **`webapp` : `apk add`/`npm install` au démarrage, jamais vérifiés en
+  conteneur réel avec un utilisateur ≠ propriétaire des dépôts montés.**
+  Remplacé par un `Dockerfile` (git + dépendances Node au build). Vérifié
+  contre le vrai conteneur reconstruit : `git status` sur `/stack/PEaaSrepo`
+  échoue en « dubious ownership » (propriétaire hôte `lord`, uid conteneur
+  0/`root`) sans `-c safe.directory=*` et réussit avec — `repoGit.js` le
+  posait déjà pour ses propres appels ; confirmé fonctionnel de bout en bout
+  par un vrai appel `POST /api/package`, qui a correctement renvoyé 409
+  (dépôt du générateur sale, tel qu'il l'était réellement à ce moment).
+- **Gitlink `PEaaSrepo` dans `/mnt`, jamais mis à jour depuis sa création.**
+  `/mnt` suivait `PEaaSrepo/` comme entrée `160000` figée, sans
+  `.gitmodules` — un sous-module de fait, non déclaré, dont le commit
+  référencé divergeait silencieusement du vrai contenu de `PEaaSrepo/` à
+  chaque avancée de ce dépôt. Retiré (`git rm --cached`) et ignoré, comme
+  `web/` (docs/03 §Dépôts).
