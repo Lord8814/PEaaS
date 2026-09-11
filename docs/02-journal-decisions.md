@@ -204,6 +204,15 @@ vérifiables depuis la machine cible), comme prévu.
 
 ---
 
+## D-020 — Génération refusée depuis un dépôt sale
+**Date.** 11/09/2026
+**Décision.** Avant chaque génération, le générateur vérifie `git status --porcelain` sur les DEUX dépôts qui déterminent le contenu de l'archive : le catalogue (`PEaaSrepo/`) et son propre code (dépôt du générateur). Fichiers suivis modifiés et fichiers non suivis comptent tous les deux. Un dépôt sale refuse la génération (409), en nommant le dépôt et les fichiers en cause. `/mnt` (espace de travail général) n'est jamais contrôlé : il ne détermine rien de l'archive. Une variable d'environnement du générateur (`PEAAS_ALLOW_DIRTY`, jamais un champ de requête) autorise un mode essai : la génération continue, mais le hash du ou des dépôts sales est suffixé `-dirty` dans `.peaas/generator-version` — `install.sh` (tâche 7) avertit déjà sur ce suffixe.
+**Raison.** Le hash inscrit dans l'archive (D-015) n'a de valeur de preuve que s'il correspond à un état réellement commité ; une archive produite depuis des fichiers non commités porterait un hash qui ne correspond à rien de traçable.
+**Écarté.** Ne contrôler que les fichiers suivis modifiés (les fichiers non suivis — un gabarit ajouté sans `git add` — rendraient tout autant le hash trompeur). Bloquer sans échappatoire (un essai rapide en cours de développement doit rester possible, mais jamais silencieusement).
+**Statut.** Retenu, implémenté (`repoGit.js`, tâche 7 bis).
+
+---
+
 ## D-XXX — *(modèle)*
 **Décision.**
 **Raison.**

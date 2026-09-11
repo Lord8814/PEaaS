@@ -13,9 +13,11 @@ où en est le chantier sans qu'on ait à le réexpliquer.
 > Phase 1 — Générateur. Catalogue branché (tâche 4), config par composant
 > rejouée (tâche 5), identifiants saisis à la génération + interfaces
 > d'admin en 127.0.0.1 (tâche 6), contrat de machine hôte + mesures
-> `install.sh` (tâche 7). **Non close** : génération refusée si dépôt non
-> propre (tâche 7 bis), critère de sortie (« un package généré s'installe
-> seul ») non vérifié sur machine vierge.
+> `install.sh` (tâche 7), génération refusée depuis un dépôt sale (tâche 7
+> bis, D-020). Lot correctif complet. **Non close** : critère de sortie
+> (« un package généré s'installe seul ») non vérifié sur machine vierge —
+> le générateur n'est pas encore figé (D-015 : après une installation
+> réussie sur machine conforme).
 
 ## Fait
 
@@ -46,7 +48,7 @@ Prompt : `prompt-claude-code-lot-correctif.md`.
 - [x] Partie A (11/09, avant B/C/D) — clôture tâche 6 : deux bugs latents documentés (clé APISIX littérale, mot de passe Solace fixe) + port DMR corrigé (`host_port` du profil → port SMF du catalogue, 55555, vérifié contre un vrai broker) ; `solace-dmr.sh` sans mot de passe SEMP → ECHEC (plus de repli `admin` hors dry-run) ; identifiants confirmés transportés par le corps POST seul, jamais journalisés
 - [x] Partie B (11/09) — structure réelle des dépôts documentée (`docs/03` §Dépôts) : trois dépôts distincts, aucun déclaré sous-module ; `/mnt/web` est devenu son propre dépôt (`webapp/app/`) entre deux tours, `/mnt` retiré du suivi de son ancien contenu
 - [x] Tâche 7 (11/09) — `install.sh` : contrat de machine hôte en étape dédiée (système, conteneurs, adresse, horloge, mémoire via `memoire_min_mo` du catalogue, disque, machine dédiée par label `peaas.site`), code de sortie 4 ; `.peaas/mesures.log` horodaté par étape ; affichage/traçabilité de `.peaas/generator-version` (avertissement si `-dirty`) ; composants déterminés depuis les services réels du compose (retrait du marqueur `.peaas-component`) — 101 tests
-- Tâche 7 bis : refus de générer si `PEaaSrepo/` ou le dépôt du générateur (`/mnt/web`) ont des modifications non commitées ; `.peaas/generator-version` = hash des deux dépôts ; mode essai `-dirty` explicite
+- [x] Tâche 7 bis (11/09, D-020) — `/api/package` refuse (409) si `PEaaSrepo/` ou le dépôt du générateur (`GENERATOR_REPO_DIR`, `/mnt/web`) ont des modifications non commitées (suivies ou non) ; `/mnt` non contrôlé. Mode essai `PEAAS_ALLOW_DIRTY=1` (variable d'environnement du générateur, jamais un champ de requête) : génération autorisée, hash suffixé `-dirty` dans `.peaas/generator-version`. Conteneur `webapp` : installe `git` au démarrage (nouveau besoin). — 111 tests (7 unitaires `repoGit.test.js` + couverture `server.test.js`, dont un banc bout en bout en mode essai)
 
 ## Bloqué
 
@@ -54,9 +56,9 @@ Prompt : `prompt-claude-code-lot-correctif.md`.
 
 ## Prochaine action
 
-Tâche 7 bis (`prompt-complement-tache-7.md`) : refus de générer si un des
-deux dépôts (générateur, catalogue) a des modifications non commitées ;
-mode essai explicite (`-dirty`) ; `.peaas/generator-version` à deux hash.
+Lot correctif (T1-T7bis) terminé. Reste avant de figer le générateur (D-015) :
+une installation réussie sur une machine réellement conforme au contrat
+(D-019), hors de ce banc de tests — voir « Bloqué » ci-dessous.
 
 ## Bonus (si le temps le permet)
 
