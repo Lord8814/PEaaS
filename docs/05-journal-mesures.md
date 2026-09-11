@@ -326,3 +326,21 @@ n'était vérifié qu'à l'un de ses bouts, jamais en bout en bout, donc jamais 
   (`touch /stack/docs/...` → `Read-only file system`). Conteneur et copie
   temporaire détruits après coup ; `/mnt/PEaaSrepo` recontrôlé propre,
   `HEAD` inchangé.
+- **D-022 (PATCH/DELETE) vérifié dans le vrai conteneur non-root, même
+  méthode (copie temporaire de `PEaaSrepo`).** Cette fois avec le montage
+  `./app` en RW comme en production (pas seulement l'image figée au
+  build), pour représenter fidèlement `webapp/compose.yaml` — sinon les
+  routes PATCH/DELETE, ajoutées après la dernière image construite,
+  n'auraient pas été présentes dans le conteneur (piège évité en
+  rebuild/re-mountant avant de tester, pas après avoir constaté un 404).
+  Confirmé en conditions réelles : `PATCH .../site-b` (host_address) → 200,
+  commit dédié ; `DELETE .../site-c` → 204, commit dédié,
+  `index_history` intact (2 toujours présent) ; ajout ensuite → index 3
+  (frais), jamais 2 ; site inconnu → 404 sur les deux routes ; dépôt sale
+  → 409 (aucun bypass). `/mnt/PEaaSrepo` recontrôlé intact après coup.
+  **Artefact cosmétique repéré** : une suppression suivie d'un ajout peut
+  laisser deux lignes blanches consécutives entre deux blocs de site
+  (héritées respectivement de la fin du bloc supprimé et du début du bloc
+  inséré) — YAML valide, revalidé par le round-trip texte du module,
+  aucun effet fonctionnel. Non corrigé : cosmétique seul, à traiter si ça
+  gêne en pratique plutôt que par anticipation.
