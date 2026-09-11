@@ -56,6 +56,20 @@ Format : date, décision, raison, alternatives écartées, statut.
 **Décision.** Le générateur crée une fois l'autorité de la fédération, stockée hors dépôt (`PEAAS_CA_DIR`, droits 0600/0700). Un certificat par site (serverAuth + clientAuth), réutilisé tant qu'il est valide, réémis à moins de 30 jours ou sur demande. L'archive d'un site contient sa clé, son certificat et le certificat de l'autorité — jamais la clé de l'autorité ni celle d'un autre site.
 **Raison.** Le générateur est le plan de contrôle ; il connaît déjà la liste des sites.
 **Statut.** Retenu, **amendé par D-013** : aux conditions de réémission existantes (certificat absent, < 30 jours, signé par une autre autorité, `--force`) s'ajoute « SAN ne correspondant plus à la topologie ». Complété par D-014.
+**Emplacement retenu (11/09, avant gel).** `PEAAS_CA_DIR=/srv/peaas-ca` sur
+l'hôte (droits 0700, propriétaire `lord`, uid:gid 1000:1000 — le conteneur
+`webapp` tourne sous ce même uid, `user:` du compose, plutôt qu'en root qui
+outrepasserait ces droits), monté dans `webapp/compose.yaml` et jamais dans
+un dépôt. Le générateur (`certs.js`, `verifierMagasinCa`) refuse de
+démarrer si `PEAAS_CA_DIR` n'est pas défini ou si le dossier n'est pas
+accessible en écriture — vérifié avant `app.listen`, pas au premier appel
+`/api/package` — plutôt que de créer une CA à un autre emplacement.
+**Sauvegarde.** `/srv/peaas-ca` est sauvegardé hors ligne, hors de ce socle
+(hors périmètre du générateur). Sa perte est irréversible pour la
+fédération existante : aucun site déployé ne peut plus prouver son
+appartenance à la même autorité — regénérer la CA impose de réémettre et
+redéployer le certificat de chaque site, donc de reconstruire toute la
+fédération DMR/mTLS depuis zéro.
 
 ---
 
