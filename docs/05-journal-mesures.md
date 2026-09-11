@@ -221,3 +221,31 @@ n'était vérifié qu'à l'un de ses bouts, jamais en bout en bout, donc jamais 
   (variables sans valeur) ; `webapp/.env` confirmé ignoré par le dépôt ;
   installation documentée (`docs/03`). Revérifié avec `env -i` : échec
   explicite sans le fichier, succès une fois créé depuis l'exemple.
+- **Régression d'interface (audit navigateur, 11/09) : dépendances non
+  auto-cochées, aucun champ d'identifiant affiché.** Hypothèse de départ
+  (`public/app.js` consommant un ancien format de `/api/components`)
+  **fausse** — vérifiée et écartée : le contrat réel (`{label, deps,
+  description, identifiants}`) et ce que lit `app.js` correspondent
+  exactement. Cause réelle, reproduite en DOM réel (jsdom) : `#regenCert`
+  (case à cocher du bloc multisite, présente dans le DOM même masquée par
+  CSS) matche `input[type=checkbox]` — sélecteur non restreint dans
+  `appliquerDependances()` et `selection()`. Sans attribut `value` HTML, sa
+  valeur DOM vaut `"on"` (défaut du spec HTML) ; `$("note-on")` est `null`
+  (aucun `<span id="note-on">` — seuls les composants du catalogue en ont
+  un) → `TypeError` non intercepté, qui interrompait toute la fonction
+  avant d'atteindre la logique de dépendances et l'appel à
+  `afficherIdentifiants()`. **Pourquoi ça n'a pas été détecté avant**
+  (commande explicite du prompt) : `server.test.js` couvre le contrat HTTP
+  de `/api/components` et `/api/package`, jamais le JavaScript qui les
+  consomme dans une page réelle — aucun test n'exécutait `app.js` contre un
+  DOM. Corrigé : sélecteurs restreints à `#liste` (`public/app.js`) ; 7
+  tests d'interface ajoutés (`public/app.test.js`, jsdom), qui échouent
+  4/7 sur le code d'avant correctif (vérifié) ; un test serveur dédié
+  reproduit le corps exact qu'envoyait l'UI cassée (`identifiants` absent
+  du tout, pas seulement vide) → 400 nommant `APISIX_ADMIN_KEY`.
+  **Journaux (`docker logs webapp`)** : trois packages réellement générés
+  pendant cette session, jamais de valeur de production — `11:57:07Z
+  [package] etcd` (composants=["etcd"], aucun identifiant requis) ;
+  `12:11:05Z [package] etcd, apisix` (composants=["etcd","apisix"],
+  `APISIX_ADMIN_KEY:"x"`, valeur de test) ; `12:12:35Z [package] etcd`
+  (composants=["etcd"], site-b, aucun identifiant).
