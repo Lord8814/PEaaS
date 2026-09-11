@@ -12,9 +12,10 @@ où en est le chantier sans qu'on ait à le réexpliquer.
 
 > Phase 1 — Générateur. Catalogue branché (tâche 4), config par composant
 > rejouée (tâche 5), identifiants saisis à la génération + interfaces
-> d'admin en 127.0.0.1 (tâche 6). **Non close** : contrôles du contrat de
-> machine + traçabilité `install.sh` (tâche 7), critère de sortie (« un
-> package généré s'installe seul ») non vérifié sur machine vierge.
+> d'admin en 127.0.0.1 (tâche 6), contrat de machine hôte + mesures
+> `install.sh` (tâche 7). **Non close** : génération refusée si dépôt non
+> propre (tâche 7 bis), critère de sortie (« un package généré s'installe
+> seul ») non vérifié sur machine vierge.
 
 ## Fait
 
@@ -42,8 +43,10 @@ Prompt : `prompt-claude-code-lot-correctif.md`.
 - [x] Tâche 5 — configuration rejouée par composant (D-010) : `apisix.sh` (route de santé `/peaas/health`, Admin API idempotente) et `postgres.sh` (schéma neutre `peaas` + table marqueur) écrits ; provisionnement Grafana de la source Prometheus (gabarit neutre) ; flux Node-RED montés au 1er démarrage (tâche 4) ; `install.sh` rejoue `.peaas/setup-scripts` (manifeste du générateur, non bloquant, rejouable) — 74 tests
 - [x] Corrections 2-6 du 11/09 (avant reprise tâche 6) : D-008 restauré (résumé qui avait perdu ses amendements), `apisix.sh` sort en erreur sans clé, `install.sh` étape 7 fait un bilan par script (sauté/appliqué/impossible), `peaas.socle_info` porte `site_id`/`generator_version`
 - [x] Tâche 6 — identifiants et interfaces d'administration (D-011, D-018) : `/api/components` expose les identifiants requis, `/api/package` refuse (400) si un identifiant manque, `.env` de l'archive (0600) porte les identifiants + est toujours émis dès qu'un est requis (avant : multisite seulement) ; `APISIX_ADMIN_KEY` : chaîne complète .env → environment du service → `${{APISIX_ADMIN_KEY}}` (syntaxe native APISIX) ; SEMP Solace + Admin API/métriques APISIX liés à `127.0.0.1`, etcd sans port du tout ; `solace-dmr.sh` lit `SOLACE_ADMIN_PASSWORD` du `.env` (avant : mot de passe `admin` fixe, aurait échoué dès qu'un vrai mot de passe était posé) — 89 tests
-- `install.sh` : horodatage, version du générateur, contrôle NTP, vérification du contrat de machine hôte (D-015, D-017, D-019) — complément de prompt : `prompt-complement-tache-7.md`
-- Refus de générer si `PEaaSrepo/` a des modifications non commitées (tâche 7 bis)
+- [x] Partie A (11/09, avant B/C/D) — clôture tâche 6 : deux bugs latents documentés (clé APISIX littérale, mot de passe Solace fixe) + port DMR corrigé (`host_port` du profil → port SMF du catalogue, 55555, vérifié contre un vrai broker) ; `solace-dmr.sh` sans mot de passe SEMP → ECHEC (plus de repli `admin` hors dry-run) ; identifiants confirmés transportés par le corps POST seul, jamais journalisés
+- [x] Partie B (11/09) — structure réelle des dépôts documentée (`docs/03` §Dépôts) : trois dépôts distincts, aucun déclaré sous-module ; `/mnt/web` est devenu son propre dépôt (`webapp/app/`) entre deux tours, `/mnt` retiré du suivi de son ancien contenu
+- [x] Tâche 7 (11/09) — `install.sh` : contrat de machine hôte en étape dédiée (système, conteneurs, adresse, horloge, mémoire via `memoire_min_mo` du catalogue, disque, machine dédiée par label `peaas.site`), code de sortie 4 ; `.peaas/mesures.log` horodaté par étape ; affichage/traçabilité de `.peaas/generator-version` (avertissement si `-dirty`) ; composants déterminés depuis les services réels du compose (retrait du marqueur `.peaas-component`) — 101 tests
+- Tâche 7 bis : refus de générer si `PEaaSrepo/` ou le dépôt du générateur (`/mnt/web`) ont des modifications non commitées ; `.peaas/generator-version` = hash des deux dépôts ; mode essai `-dirty` explicite
 
 ## Bloqué
 
@@ -51,9 +54,9 @@ Prompt : `prompt-claude-code-lot-correctif.md`.
 
 ## Prochaine action
 
-Tâche 7 + 7 bis (`prompt-complement-tache-7.md`) : horodatage `install.sh`,
-version du générateur, contrôle NTP, contrat de machine hôte, refus de
-générer si `PEaaSrepo/` est dirty.
+Tâche 7 bis (`prompt-complement-tache-7.md`) : refus de générer si un des
+deux dépôts (générateur, catalogue) a des modifications non commitées ;
+mode essai explicite (`-dirty`) ; `.peaas/generator-version` à deux hash.
 
 ## Bonus (si le temps le permet)
 

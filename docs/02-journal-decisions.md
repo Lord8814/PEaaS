@@ -155,7 +155,7 @@ et sort en 0.
 **Date.** 10/09/2026
 **Décision.** Avant le déploiement du site A, le générateur est figé sur un commit. Ce commit est inscrit dans chaque archive et dans le journal des mesures. `install.sh` horodate lui-même chacune de ses étapes.
 **Raison.** Sans cela, la courbe de l'affirmation 2 mélange le gain de la réplication et celui des corrections apportées entre deux sites.
-**Statut.** Retenu.
+**Statut.** Retenu. **Implémenté partiellement (tâche 7, 11/09)** : `install.sh` écrit `.peaas/mesures.log` (horodatage début/fin de chaque étape, un journal par exécution) et affiche/journalise `.peaas/generator-version` s'il est présent, avec avertissement si suffixé `-dirty`. Reste tâche 7 bis : le générateur n'écrit pas encore ce fichier (refus de générer si dépôt non propre, hash à deux dépôts) — non figé pour l'instant, sur consigne explicite.
 
 ---
 
@@ -171,7 +171,7 @@ et sort en 0.
 **Date.** 10/09/2026
 **Décision.** Chaque VM se synchronise sur NTP de façon indépendante. `install.sh` vérifie la synchronisation et avertit si elle est absente.
 **Raison.** La validation mTLS dépend de l'heure locale ; aucune hypothèse d'horloge commune.
-**Statut.** Retenu.
+**Statut.** Retenu. **Implémenté (tâche 7, 11/09)** : `timedatectl show -p NTPSynchronized`, avertissement non bloquant si absent ou différent de `yes`.
 
 ---
 
@@ -190,6 +190,17 @@ et sort en 0.
 **Conséquence sur la mesure.** Le chronométrage de l'affirmation 2 commence sur une machine conforme. La préparation est chronométrée une fois, à titre d'information.
 **Écarté.** Automatiser la préparation des VM dans le périmètre principal (hors problématique, et dépendant de l'hébergement).
 **Statut.** Retenu. La bascule IP statique (ancienne tâche A) quitte définitivement les tâches du générateur.
+**Implémenté (tâche 7, 11/09).** `install.sh` vérifie le contrat en une étape
+dédiée, avant toute action : système (avertissement), conteneurs (bloquant,
+inchangé), adresse (bloquant — `host_address` du profil absente des
+interfaces locales), horloge NTP (avertissement), mémoire (bloquant — somme
+des `memoire_min_mo` du catalogue pour les composants retenus, ou plancher
+8 Go si aucun ne le renseigne), disque (avertissement, seuil 20 Go), machine
+dédiée (bloquant — conflit de nom Docker avec un autre site ou un autre
+usage ; accepté si le même `peaas.site` est déjà posé, label porté par
+chaque service du compose et par le réseau). Code de sortie dédié : 4.
+Ports entrants et isolation restent hors de portée d'`install.sh` (non
+vérifiables depuis la machine cible), comme prévu.
 
 ---
 

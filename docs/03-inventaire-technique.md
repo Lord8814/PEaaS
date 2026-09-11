@@ -66,6 +66,26 @@ la règle du socle (régénéré par `npm install`, jamais versionné).
 | Isolation : aucune entrée `hosts` vers un pair, aucun montage partagé | | | |
 | Durée de préparation (information) | | | |
 
+> Vérifié par `install.sh` (tâche 7, 11/09) sauf ports entrants et isolation
+> (non vérifiables depuis la machine cible). Code de sortie dédié : 4.
+
+### Mémoire minimale par produit (`memoire_min_mo`, catalogue)
+
+| Produit | Mo | Origine |
+|---|---|---|
+| solace | 4096 | **Provisoire** — à remplacer par la mesure du site A (T7bis) ; composant contraignant |
+| postgres | 512 | Estimation, à mesurer |
+| prometheus | 512 | Estimation, à mesurer |
+| apisix | 256 | Estimation, à mesurer |
+| grafana | 256 | Estimation, à mesurer |
+| pgadmin | 256 | Estimation, à mesurer |
+| nodered1 | 256 | Estimation, à mesurer |
+| etcd | 128 | Estimation, à mesurer |
+
+Somme des 8 : 6272 Mo — sous le plancher du contrat (8 Go) : le socle complet
+ne l'élève jamais. `install.sh` applique le plancher si aucun composant
+retenu ne renseigne le champ.
+
 ## Machines
 
 | Site | Hôte | OS | vCPU | RAM | Disque | IP statique | NTP actif |
