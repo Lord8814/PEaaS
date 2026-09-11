@@ -154,16 +154,46 @@ test("install.sh : etape 7 rejoue .peaas/setup-scripts (present ignore, absent s
 
   const r1 = lancer(dir, env);
   assert.equal(r1.code, 0, r1.stderr);
-  assert.match(r1.stdout, /apisix configure \(scripts\/setup\/apisix\.sh\)/);
-  assert.match(r1.stdout, /solace absent du package/);
+  assert.match(r1.stdout, /apisix\s+applique\s+scripts\/setup\/apisix\.sh/);
+  assert.match(r1.stdout, /solace\s+saute\s+.*composant absent du package/);
   assert.match(r1.stdout, /SUCCES/);
 
   // rejeu : le script est relance, aucune erreur, toujours SUCCES
   const r2 = lancer(dir, env);
   assert.equal(r2.code, 0, r2.stderr);
-  assert.match(r2.stdout, /apisix configure/);
+  assert.match(r2.stdout, /apisix\s+applique/);
   assert.match(r2.stdout, /SUCCES/);
 
   const appels = fs.readFileSync(path.join(dir, ".apisix-setup-appels"), "utf8");
   assert.equal(appels.trim().split("\n").length, 2, "script rejoue à chaque passage");
+});
+
+test("install.sh : etape 7, un script impossible -> ECHEC nommant le composant, code != 0", () => {
+  const { dir, mockbin, mockstate } = bac();
+
+  fs.writeFileSync(
+    path.join(dir, ".peaas", "setup-scripts"),
+    "apisix\tscripts/setup/apisix.sh\n"
+  );
+  fs.mkdirSync(path.join(dir, "scripts", "setup"), { recursive: true });
+  // Script factice simulant un identifiant manquant : sort en erreur.
+  fs.writeFileSync(
+    path.join(dir, "scripts", "setup", "apisix.sh"),
+    "#!/usr/bin/env bash\necho 'cle manquante' >&2\nexit 1\n",
+    { mode: 0o755 }
+  );
+
+  const env = {
+    PATH: `${mockbin}:${process.env.PATH}`,
+    PEAAS_MOCK_DIR: mockstate,
+    PEAAS_NETWORK: "peaas-test",
+    MOCK_SERVICES: "etcd apisix"
+  };
+
+  const r = lancer(dir, env);
+  assert.notEqual(r.code, 0);
+  assert.match(r.stdout, /apisix\s+impossible\s+scripts\/setup\/apisix\.sh/);
+  assert.match(r.stdout + r.stderr, /ECHEC/);
+  assert.match(r.stdout + r.stderr, /configuration impossible pour : apisix/);
+  assert.doesNotMatch(r.stdout, /SUCCES/);
 });

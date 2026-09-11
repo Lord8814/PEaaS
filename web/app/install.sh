@@ -19,7 +19,9 @@
 #        (.peaas/start-order, sinon ordre de reference ci-dessous).
 #     6. verifie que les conteneurs attendus sont `running` et resume.
 #     7. rejoue la config NEUTRE de chaque composant (.peaas/setup-scripts :
-#        route de sante APISIX, schema neutre PostgreSQL, liens DMR Solace).
+#        route de sante APISIX, schema neutre PostgreSQL, liens DMR Solace) et
+#        dresse un bilan par script (saute / applique / impossible) ; le
+#        script s'arrete en ECHEC si l'un d'eux est impossible.
 #
 #  Suppose present dans le dossier courant (fournis par le generateur) :
 #     docker-compose.yaml, .env, site-profile.yaml, certs/,
@@ -278,28 +280,42 @@ etape "7. Configuration des composants (rejeu idempotent)"
 # =============================================================================
 # Socle NEUTRE : chaque script de .peaas/setup-scripts rejoue la config de SON
 # composant (route de sante APISIX, schema neutre PostgreSQL, liens DMR
-# Solace). Aucun contenu metier. Non bloquant et rejouable : un composant pas
-# encore pret n'arrete pas l'installation. Le manifeste vient du generateur
-# (catalogue) ; install.sh ne devine rien.
+# Solace). Aucun contenu metier. Rejouable. Trois issues par script :
+#   saute      composant ou script absent du package (pas une erreur)
+#   applique   script lance, code de sortie 0
+#   impossible script lance, code de sortie != 0 (ex. identifiant manquant)
+# Le manifeste vient du generateur (catalogue) ; install.sh ne devine rien.
+# Un script "impossible" n'arrete pas les autres composants, mais empeche le
+# bilan final de SUCCES.
+SAUTES=(); APPLIQUES=(); IMPOSSIBLES=()
 if [ -f .peaas/setup-scripts ]; then
+  printf '  %-14s %-11s %s\n' COMPOSANT ETAT SCRIPT
   while IFS=$'\t' read -r comp script; do
     [ -n "$comp" ] || continue
     if ! contient "$comp" "${PRESENTS[@]}"; then
-      info "$comp absent du package — $script ignore"
+      printf '  %-14s %-11s %s\n' "$comp" saute "$script (composant absent du package)"
+      SAUTES+=("$comp")
       continue
     fi
     if [ ! -f "$script" ]; then
-      info "$script absent du package — $comp non configure automatiquement"
+      printf '  %-14s %-11s %s\n' "$comp" saute "$script (script absent du package)"
+      SAUTES+=("$comp")
       continue
     fi
     if bash "$script"; then
-      ok "$comp configure ($script)"
+      printf '  %-14s %-11s %s\n' "$comp" applique "$script"
+      APPLIQUES+=("$comp")
     else
-      avert "$comp : configuration incomplete ($script). Rejouable : bash $script"
+      printf '  %-14s %-11s %s\n' "$comp" impossible "$script"
+      IMPOSSIBLES+=("$comp")
     fi
   done < .peaas/setup-scripts
 else
   info "aucun script de configuration dans ce package"
+fi
+
+if [ "${#IMPOSSIBLES[@]}" -gt 0 ]; then
+  mourir 1 "configuration impossible pour : ${IMPOSSIBLES[*]}. Corrigez (identifiant ou cle manquant, service pas encore pret) puis rejouez : bash <script>."
 fi
 
 printf '\n%sSUCCES%s socle PEaaS demarre (%d composant(s), reseau peaas=%s).\n' \
