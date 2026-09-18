@@ -32,9 +32,27 @@ La mesure commence sur une machine conforme au contrat de machine hôte (D-019).
 
 | Site | Nombre | Nature | Évitable ? |
 |---|---|---|---|
-| A | | | |
-| B | | | |
-| C | | | |
+| A (18/09) | 2 | `sed -i 's/\r$//'` sur les PEM déployés ; correction de `/etc/resolv.conf` | Oui — les deux causes corrigées (D-024) |
+| B (18/09) | 2 | idem | Oui — idem |
+
+> **Ces deux lignes disqualifient les installations du 18/09 comme preuve de
+> l'affirmation 1.** Elles sont conservées ici précisément pour ça : une
+> installation qui a demandé deux interventions humaines n'est pas une
+> installation « en une commande », et le générateur ne peut pas être figé sur
+> cette base.
+>
+> 1. **PEM en CRLF** — `forge.pki.certificateToPem()` encode selon la RFC 1421,
+>    qui impose CRLF. `pem_json` de `solace-dmr.sh` n'échappait que le saut de
+>    ligne : le `\r` brut rendait le JSON invalide, les six appels SEMPv2
+>    échouaient en `400 Malformed JSON`. Corrigé aux deux endroits (D-024).
+> 2. **Résolution DNS** — `/etc/resolv.conf` pointait sur `[::1]`, Docker ne
+>    résolvait aucun registre, l'installation mourait à l'étape 5 dans un état
+>    à moitié installé. Le contrat n'avait aucune clause là-dessus : une clause
+>    « Images » a été ajoutée et est désormais vérifiée à l'étape 1, avant
+>    toute action (D-024, amendement de D-019).
+>
+> Objectif pour la reprise : cette section doit afficher **0** pour chaque
+> site. Toute ligne non vide y est un aveu, et c'est voulu.
 
 ## Ajout d'un site
 
@@ -344,3 +362,53 @@ n'était vérifié qu'à l'un de ses bouts, jamais en bout en bout, donc jamais 
   inséré) — YAML valide, revalidé par le round-trip texte du module,
   aucun effet fonctionnel. Non corrigé : cosmétique seul, à traiter si ça
   gêne en pratique plutôt que par anticipation.
+
+### 18/09 — première installation réelle : trois pannes, trois natures différentes
+
+Première confrontation du package à des machines réelles (banc A/B, D-021).
+Trois pannes distinctes en une journée, et ce qui est instructif est qu'elles
+ne relèvent pas du même registre :
+
+**1. Un ordre d'étapes dans `install.sh`** (D-023). `DC` référençait
+`docker-compose.override.yml` dès l'étape 1, alors que le fichier n'était écrit
+qu'à l'étape 3. Un `-f` sur fichier absent fait échouer `docker compose`
+immédiatement ; le `2>/dev/null` avalait l'erreur et le script concluait
+« aucun service dans docker-compose.yaml ». **Le message a orienté le
+diagnostic vers l'archive alors que l'archive était parfaite.** Le compose
+produit contenait bien ses 7 services, vérifié par régénération.
+
+**2. Un encodage, jamais regardé** (D-024). `node-forge` encode le PEM selon la
+RFC 1421, qui impose CRLF ; les clés privées, produites par Node, sortent en
+LF. Personne n'avait jamais comparé les deux. Le `\r` rendait invalide le JSON
+construit à la main par `solace-dmr.sh`, d'où six appels SEMPv2 en 400.
+
+**3. Une clause absente du contrat** (D-024, amendement D-019).
+`/etc/resolv.conf` sur `[::1]` : aucune image téléchargeable. La section 7.2
+ne disait rien de la résolution de noms — le contrat couvrait la mémoire, le
+disque, l'horloge, mais pas ce sans quoi rien ne démarre.
+
+**Le point commun des trois : aucun test ne pouvait les voir.**
+
+- Le mock Docker avalait tous les `-f` sans vérifier leur existence — il ne
+  *pouvait pas* reproduire la panne 1.
+- Le test d'intégration Solace valide des payloads déjà bien formés contre un
+  broker en place ; il ne part jamais d'une archive fraîche — il ne *pouvait
+  pas* voir la panne 2.
+- Aucun test ne portait sur la disponibilité des images — la panne 3 n'avait
+  pas de place où apparaître.
+
+C'est exactement le risque « des tests qui valident leurs propres hypothèses »,
+inscrit au tableau des risques **avant** qu'il ne survienne. La leçon a été
+appliquée pour les correctifs : dans les deux lots, le test a été écrit et
+vérifié en échec **avant** la correction du code — y compris en restaurant
+temporairement l'ancien `certs.js` pour prouver que le test d'archive échouait
+bien sans le correctif.
+
+**Coût** : une journée pour trois pannes dont deux tenaient en une ligne de
+correction. Le temps est passé en diagnostic, pas en écriture — et c'est le bon
+partage, la première tentative de correction rapide (sur la panne 1) visait
+l'archive, c'est-à-dire l'endroit où le défaut n'était pas.
+
+**Ce que ça dit pour les mesures à venir** : les durées du 18/09 sont
+inexploitables et ne sont pas relevées. Les deux VM ont un instantané
+`avant-premier-deploiement` ; toute mesure partira de là.

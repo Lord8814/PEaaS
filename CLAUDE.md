@@ -61,3 +61,7 @@ Aucun `depends_on` déclaré. Ordre à respecter au démarrage manuel (`ordre_de
 Ports : `apisix` 9080 public, 9180/9091 sur `127.0.0.1`. `solace` 55555/1883/8000/5672/9000 publics, 8080 (SEMP) sur `127.0.0.1` (D-018). `nodered1` 1880, `pgadmin` 5433, `prometheus` 9090, `grafana` 3000, `webapp` 3001 : liés à `127.0.0.1`. `etcd` et `postgres` n'exposent aucun port.
 
 État courant du chantier : voir `docs/` (fichiers vivants — ne pas recopier ici).
+Point d'entrée : `docs/00-vue-ensemble.md` (le projet, l'état réel des trois
+affirmations, la carte des documents), puis `docs/01-etat-avancement.md` pour
+la prochaine action. Toute la documentation vit dans `/mnt/docs/` et fait foi :
+`PEaaSrepo/` ne contient pas de `docs/`.

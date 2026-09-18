@@ -149,16 +149,26 @@ observée, tolérance appliquée).
 
 ## Composants par site
 
-| Composant | A | B | C | Version | Config appliquée par |
-|---|---|---|---|---|---|
-| APISIX (sans dashboard) | | | | | Script Admin API |
-| etcd | | | | | — (stockage produit) |
-| Solace | | | | | Script SEMPv2 |
-| Node-RED | | | | | Fichier de flows |
-| PostgreSQL | | | | | Scripts SQL d'init |
-| pgAdmin | | | | | Gabarit de réglages |
-| Prometheus | | | | | Gabarit `prometheus.yml` |
-| Grafana | | | | | Gabarit + source Prometheus provisionnée |
+> Sélection **réellement déployée** le 18/09 sur les deux sites — identique des
+> deux côtés pour ce premier passage. La documentation de cadrage (§7.3) prévoit
+> à terme des sites composés différemment, pour démontrer que des plateformes
+> hétérogènes dialoguent ; ce n'est pas encore le cas.
+
+| Composant | A | B | Version | Config appliquée par |
+|---|---|---|---|---|
+| etcd | oui | oui | `quay.io/coreos/etcd:v3.5.11` | — (stockage produit) |
+| APISIX (sans dashboard) | oui | oui | `apache/apisix:3.9.1-debian` | `apisix.sh` (Admin API) |
+| PostgreSQL | oui | oui | `postgres:16` | `postgres.sh` (schéma `peaas`) |
+| Solace | oui | oui | `solace/solace-pubsub-standard:latest` | `solace-dmr.sh` (SEMPv2) |
+| Node-RED | non | non | — | Fichier de flows |
+| pgAdmin | non | non | — | Gabarit de réglages |
+| Prometheus | non | non | — | Gabarit `prometheus.yml` |
+| Grafana | non | non | — | Gabarit + source Prometheus provisionnée |
+
+> **Node-RED est absent et ça compte** : le scénario de démonstration de la
+> phase 3 (publication sur A → insertion dans la base de B) en a besoin. La
+> sélection actuelle valide le socle et la fédération, pas la démonstration.
+> À arbitrer avant le gel du générateur, sinon deux séries de mesures.
 
 > Configuration neutre rejouée par `install.sh` (étape 7) depuis
 > `.peaas/setup-scripts` : `apisix.sh` (route `/peaas/health`), `postgres.sh`
@@ -341,6 +351,30 @@ seule fenêtre de divergence possible est entre un `git commit` et le
 prochain redémarrage du process (server.js en mémoire reste l'ancien code
 un instant) — se referme dès `docker compose restart webapp`.
 
+## Générateur — surface exposée
+
+> Relevé dans `web/webapp/app/server.js` le 18/09. Le serveur écoute sur
+> `127.0.0.1:3001` uniquement (D-018) : depuis une autre machine, on y accède
+> par un tunnel SSH, jamais en publiant le port.
+
+| Route | Rôle | Écrit quelque part ? |
+|---|---|---|
+| `GET /api/components` | Catalogue vu par l'interface : libellé, dépendances, identifiants requis | non |
+| `GET /api/sites` | Sites de `topology.yaml`, validés au passage | non |
+| `POST /api/compose` | Aperçu du `docker-compose.yaml` assemblé | non |
+| `POST /api/package` | **Génère l'archive d'un site** (tar.gz) | non — lit le catalogue, écrit dans le magasin CA si un certificat doit être émis |
+| `POST /api/topology/sites` | Ajoute un site (index attribué par le serveur, D-005) | **oui** — `topology.yaml` + commit Git |
+| `PATCH /api/topology/sites/:id` | Modifie `host_address` / `host_cidr` / `dmr_node_name` | **oui** — idem |
+| `DELETE /api/topology/sites/:id` | Retire un site de `sites:` (`index_history` intact) | **oui** — idem |
+| `GET /api/health` | État des composants joignables depuis le réseau `peaas` | non |
+| `POST /api/test/loadbalancing`, `POST /api/test/database` | Tests de démonstration hérités du socle mono-VM | non |
+
+Les trois routes qui écrivent sont la **seule** exception à `/mnt` monté en
+lecture seule (D-022) : portée volontairement étroite, dépôt propre exigé avant
+toute écriture, commit dédié par opération. Le nom du cluster DMR et
+`index_history` ne sont modifiables par aucune route — ils se posent à la main,
+une fois, avant le premier déploiement.
+
 ## Écriture dans PEaaSrepo (D-022)
 
 `PEaaSrepo/` était jusqu'ici monté en lecture seule (via `/mnt:/stack:ro`),
@@ -410,21 +444,29 @@ outillage) — les conteneurs de travail eux-mêmes.
 > Aucune valeur par défaut. Saisis à la génération, écrits dans le `.env` de
 > l'archive (0600), jamais dans le dépôt (D-011).
 
-| Composant | Identifiants requis | Saisi pour A | B | C |
-|---|---|---|---|---|
-| Solace | admin | | | |
-| PostgreSQL | | | | |
-| pgAdmin | | | | |
-| Grafana | | | | |
+| Composant | Variables requises | Saisi pour A | Saisi pour B |
+|---|---|---|---|
+| APISIX | `APISIX_ADMIN_KEY` | oui (18/09) | oui (18/09) |
+| PostgreSQL | `POSTGRES_PASSWORD` | oui (18/09) | oui (18/09) |
+| Solace | `SOLACE_ADMIN_PASSWORD` | oui (18/09) | oui (18/09) |
+| pgAdmin | `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD` | composant non retenu | composant non retenu |
+| Grafana | `GF_SECURITY_ADMIN_USER`, `GF_SECURITY_ADMIN_PASSWORD` | composant non retenu | composant non retenu |
+
+> Les **valeurs** ne figurent dans aucun document, ni ici, ni dans un journal,
+> ni dans un message : elles vivent dans le `.env` (0600) de chaque archive et
+> dans un fichier hors dépôt sur la machine de génération. Les trois variables
+> du 18/09 ont été saisies à l'identique pour A et B — seule la plage Docker,
+> le nom de nœud DMR et l'identifiant de site diffèrent entre les deux `.env`.
 
 ## Contrôle de la règle d'isolation
 
 | Vérification | Fait | Commentaire |
 |---|---|---|
-| Aucune adresse valable seulement sur le réseau du PoC dans la config générée | | |
-| Aucun réseau commun décrit dans la topologie | | D-012 |
-| Aucun volume ou montage partagé entre sites | | |
-| Aucune résolution de nom dépendante du réseau local (pas d'entrée `hosts` ajoutée) | | |
-| Aucun répertoire `data/` dans l'archive | | D-009 |
-| Horloge synchronisée indépendamment sur chaque VM | | D-017 |
-| Test de déplacement d'une VM sur un autre réseau | | |
+| Aucune adresse valable seulement sur le réseau du PoC dans la config générée | oui | Seule `topology.yaml` porte des adresses ; le compose généré n'en contient aucune (plage Docker via `${PEAAS_DOCKER_SUBNET}` du `.env`) |
+| Aucun réseau commun décrit dans la topologie | oui | D-012 — chaque site déclare son propre `host_cidr`, jamais comparé à celui d'un pair |
+| Aucun volume ou montage partagé entre sites | oui | Chaque VM ne monte que ses propres dossiers |
+| Aucune résolution de nom dépendante du réseau local (pas d'entrée `hosts` ajoutée) | oui | Les pairs sont joints par IP, portée par le SAN du certificat (D-013) |
+| Aucun répertoire `data/` dans l'archive | oui | D-009 — vérifié par test automatisé sur les deux archives |
+| Interfaces d'administration non joignables depuis un pair | **non testé** | D-018 — à faire depuis l'autre VM, ligne jamais cochée |
+| Horloge synchronisée indépendamment sur chaque VM | **non** | D-017 — NTP jamais activé sur les clones |
+| Test de déplacement d'une VM sur un autre réseau | non | Le banc n'a qu'un réseau ; à faire si le temps le permet |

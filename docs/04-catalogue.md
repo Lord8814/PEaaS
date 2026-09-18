@@ -41,6 +41,38 @@ dans le même dossier. Ce fichier en est la spécification.
 > catalogue (`web/app/catalogue.js` ; `components.js` supprimé). Noms alignés sur
 > le socle livré (D-009) : réseau `peaas`, `container_name` sans préfixe.
 
+### Valeurs réelles, relevées dans `PEaaSrepo/catalogue/` le 18/09/2026
+
+| Produit | `ordre_demarrage` | `memoire_min_mo` | `depend_de` | `script_setup` | Identifiants requis (D-011) |
+|---|---|---|---|---|---|
+| `etcd` | 1 | 128 | — | — | aucun |
+| `apisix` | 2 | 256 | `etcd` | `apisix.sh` | `APISIX_ADMIN_KEY` |
+| `prometheus` | 3 | 512 | `apisix` | — | aucun |
+| `grafana` | 4 | 256 | `prometheus` | — | `GF_SECURITY_ADMIN_USER`, `GF_SECURITY_ADMIN_PASSWORD` |
+| `postgres` | 5 | 512 | — | `postgres.sh` | `POSTGRES_PASSWORD` |
+| `pgadmin` | 6 | 256 | `postgres` | — | `PGADMIN_DEFAULT_EMAIL`, `PGADMIN_DEFAULT_PASSWORD` |
+| `solace` | 7 | 4096 | — | `solace-dmr.sh` | `SOLACE_ADMIN_PASSWORD` |
+| `nodered1` | 8 | 256 | — | — | aucun |
+
+> Somme des huit : **6272 Mo**, sous le plancher du contrat (8 Go) — le socle
+> complet ne l'élève donc jamais. Les valeurs `memoire_min_mo` restent des
+> **estimations** sauf mention contraire : elles doivent être remplacées par des
+> mesures `docker stats` (voir `01-etat-avancement.md`). Solace est le composant
+> contraignant, et de loin.
+
+### Sélection déployée sur le banc (18/09)
+
+`etcd`, `apisix`, `postgres`, `solace` — soit les quatre produits nécessaires
+aux vérifications du socle et de la fédération (route de santé APISIX, schéma
+`peaas`, liens DMR), et les trois seuls scripts de setup existants. Ni
+Node-RED, ni Prometheus, ni Grafana, ni pgAdmin.
+
+**Conséquence à ne pas oublier** : cette sélection valide le socle et la
+fédération, **pas la démonstration**. Le scénario de la phase 3 — publication
+sur A provoquant une insertion dans la base de B — exige Node-RED. Et la même
+sélection devra être reprise pour toutes les mesures chronométrées, sinon les
+temps ne seront pas comparables (D-015).
+
 | Produit | Entrée rédigée | Branchée au générateur | Gabarit | Config rejouée |
 |---|---|---|---|---|
 | APISIX | oui | oui | `config.yaml` (`admin_key` → `${APISIX_ADMIN_KEY}`) | `apisix.sh` — route `/peaas/health` (PUT idempotent) |
