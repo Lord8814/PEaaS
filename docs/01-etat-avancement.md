@@ -6,18 +6,111 @@ où en est le chantier sans qu'on ait à le réexpliquer.
 
 # État d'avancement — PEaaS multi-site
 
-**Dernière mise à jour :** 11/09/2026
+**Dernière mise à jour :** 18/09/2026
 
 ## Phase en cours
 
-> Phase 1 — Générateur. Catalogue branché (tâche 4), config par composant
-> rejouée (tâche 5), identifiants saisis à la génération + interfaces
-> d'admin en 127.0.0.1 (tâche 6), contrat de machine hôte + mesures
-> `install.sh` (tâche 7), génération refusée depuis un dépôt sale (tâche 7
-> bis, D-020). Lot correctif complet. **Non close** : critère de sortie
-> (« un package généré s'installe seul ») non vérifié sur machine vierge —
-> le générateur n'est pas encore figé (D-015 : après une installation
-> réussie sur machine conforme).
+> Phase 1 — générateur, toujours non close. **Première tentative d'installation
+> réelle le 18/09 (site B), échouée en étape 1 d'`install.sh`. Cause établie
+> par diagnostic complet, six correctifs appliqués le même jour (D-023),
+> 171 tests verts.** Le générateur n'était pas en cause : le compose produit
+> était correct. Le défaut était dans le script d'installation et dans
+> l'interface de sélection de site — aucune décision antérieure remise en
+> cause. **Reste à faire** : rejouer l'installation réelle sur le site B (et
+> A) avec l'archive corrigée — ce lot corrige la cause diagnostiquée, il ne
+> remplace pas la vérification sur machine réelle qu'exige le critère de
+> sortie de la phase 1.
+>
+> Phase 0 close pour A ↔ B : banc monté et vérifié (D-021).
+
+## Diagnostic du 18/09 — première installation réelle
+
+Reproduction complète avant toute correction, conformément à la consigne.
+Prompt : `claude/prompt-claude-code-diagnostic-package.md`.
+
+**Cause racine, unique.** `install.sh` construit `DC=(docker compose -f
+docker-compose.yaml -f docker-compose.override.yml)` dès l'étape 1, alors que
+le fichier override n'est écrit qu'à l'étape 3. Contre un vrai `docker
+compose`, un `-f` sur fichier absent échoue immédiatement ; le `2>/dev/null`
+de la ligne qui lit `config --services` avale l'erreur, la liste ressort vide,
+et le script conclut « aucun service dans docker-compose.yaml ». Le message a
+désigné l'archive alors que la cause est un ordre d'étapes incorrect. Ce défaut
+unique explique à la fois l'échec et le diagnostic trompeur signalés séparément.
+
+**Le compose généré est correct** — 7 services, cohérents avec
+`.peaas/start-order`, vérifié par régénération à l'identique contre le serveur
+réel. Le générateur est hors de cause.
+
+**Pourquoi les tests ne l'ont pas vu.** Le mock `docker` de
+`test-mock-docker.sh` avale tous les `-f <fichier>` sans vérifier leur
+existence, puis répond `MOCK_SERVICES` inconditionnellement. Il ne peut pas
+reproduire cette panne. C'est exactement le risque « tests qui valident leurs
+propres hypothèses » inscrit au tableau des risques de la documentation.
+
+**Index de site 0 et même archive sur deux sites.** Pas un défaut serveur :
+`validateTopology` / `siteProfile` n'ont aucune valeur par défaut et échouent
+proprement. La cause est dans `public/app.js`, `afficherSites()`, qui
+présélectionne silencieusement `data.sites[0]` dans le sélecteur de site cible
+dès le chargement de l'onglet. Même classe de défaut que D-011 — un défaut
+silencieux est un piège — mais côté interface. Aggravé par un nom d'archive fixe
+(`peaas-package.tar.gz`, identique quel que soit le site) et par l'absence de
+dossier racine dans le tar : deux archives de sites différents sont
+indiscernables et s'extraient à plat au même endroit.
+
+**Contrôle mémoire sans tolérance** (`install.sh`, `MEM_TOTAL_MO -lt
+MEM_MIN_MO`) : confirmé. Une VM provisionnée à 8 Go pile n'expose jamais
+8192 Mo à `MemTotal`.
+
+## Corrections appliquées (18/09, D-023)
+
+Les six points ont été traités dans l'ordre prévu, dans le même lot :
+
+1. **Mock `docker` corrigé en premier.** `test-mock-docker.sh` échoue
+   désormais sur un `-f <fichier absent>` (message + code de sortie
+   identiques à un vrai `docker compose`) : le correctif d'`install.sh` est
+   prouvé par un test qui aurait échoué sans lui, et le trou de couverture
+   est refermé pour la prochaine fois.
+2. `install.sh` : `docker-compose.override.yml` écrit à l'étape 0 (dès que
+   `RESEAU`/`SUBNET` sont connus), avant toute invocation de `docker
+   compose` — plus de référence `-f` à un fichier pas encore créé.
+3. `docker compose config --services` : sortie d'erreur capturée et
+   reproduite en cas d'échec ; un succès sans service produit un message
+   distinct (« ne liste aucun service ») d'un échec de commande — les deux
+   ne peuvent plus se ressembler.
+4. Sélecteur de site sans présélection implicite (option vide, toujours
+   choisie au chargement) ; génération du package refusée tant qu'aucun
+   site n'est choisi explicitement (l'aperçu/le compose seul, identique
+   pour tous les sites par construction, D-009, n'a pas cette contrainte).
+5. Dossier racine par site dans l'archive (`peaas-<site_id>/`, ou
+   `peaas-package/` en mono-site) et nom de fichier assorti
+   (`peaas-<site_id>.tar.gz`, lu depuis `Content-Disposition` côté client).
+   Le test comparant deux archives d'une même topologie (diff limité à
+   `site-profile.yaml`/`.env`/`certs/`) existait déjà avant ce lot ; il a
+   seulement été adapté au nouveau dossier racine (`--strip-components=1`).
+6. Tolérance de 5 % sur le contrôle mémoire d'`install.sh`
+   (`MEM_MIN_MO_TOLERE = MEM_MIN_MO × 95 / 100`), affichée dans les
+   messages de succès et d'échec ; section 7.2 et D-019 à amender dans un
+   prochain passage documentaire (renvoi vers `docs/03`, déjà fait).
+
+Détail complet, raisons et alternatives écartées : D-023 (`docs/02`).
+171 tests verts (5 nouveaux : deux sur `install.sh` — échec de commande
+remonté, service manquant distinct d'un échec —, un sur la tolérance
+mémoire, un sur le blocage de génération sans site choisi côté interface,
+plus la couverture existante adaptée au dossier racine).
+
+## Banc de test
+
+Deux VM Debian 13 sans interface, clonées depuis un modèle commun, 4 vCPU et
+8 Go chacune, Docker 29.7.2 et Compose v5.5.0.
+
+| Site | Nom d'hôte | Adresse | Accès hôte |
+|---|---|---|---|
+| A | `peaas-site-a` | 192.168.90.11 | `ssh -p 2211 lord@127.0.0.1` |
+| B | `peaas-site-b` | 192.168.90.12 | `ssh -p 2212 lord@127.0.0.1` |
+
+Réseau NAT VirtualBox `MultiSite`, `192.168.90.0/24`, DHCP désactivé (D-021).
+Identité régénérée site par site après clonage : nom d'hôte, `machine-id`,
+clés d'hôte SSH. Ping croisé vérifié.
 
 ## Fait
 
@@ -26,59 +119,49 @@ où en est le chantier sans qu'on ait à le réexpliquer.
 - [x] Dépôt Git créé (`PEaaSrepo/`, séparé des conteneurs de travail)
 - [x] Topologie, profil de site, validation (tests)
 - [x] Autorité de certification et certificats de site (tests)
-- [x] `install.sh` en une commande (tests + exécution partielle réelle)
+- [x] `install.sh` en une commande (tests ; **première exécution réelle échouée, cf. diagnostic**)
 - [x] Scripts DMR Solace en simulation (`--dry-run`)
 - [x] Saisie des identifiants à la génération, sans valeur par défaut
 - [x] Test d'intégration Solace contre un vrai broker (payloads acceptés ; lien actif en mTLS non vérifié)
-- [ ] Adresses hôtes réelles des trois machines
-- [ ] Trois machines conformes au contrat de machine hôte (doc 7.2), une par site, sans hôte partagé
-- [ ] Connectivité vérifiée sur les trois liens
-
-## En cours — lot correctif du 10/09
-
-Prompt : `prompt-claude-code-lot-correctif.md`.
-
-- [x] Tâche 1 — test d'intégration Solace (lien actif en mTLS non vérifié)
-- [x] Tâche 2 — validation de topologie sans réseau commun (D-012)
-- [x] Tâche 3 — SAN DNS + IP (D-013)
-- [x] Tâche 4 — catalogue branché (dossier par produit), `components.js` supprimé, archive sans `data/`, diff inter-sites limité à l'identité — commits `dfdac96` (PEaaSrepo) + `79fa9be` (/mnt) ; historique du dépôt vérifié (aucun secret jamais commité dans `PEaaSrepo/`, cf. `docs/05`)
-- [x] Tâche 5 — configuration rejouée par composant (D-010) : `apisix.sh` (route de santé `/peaas/health`, Admin API idempotente) et `postgres.sh` (schéma neutre `peaas` + table marqueur) écrits ; provisionnement Grafana de la source Prometheus (gabarit neutre) ; flux Node-RED montés au 1er démarrage (tâche 4) ; `install.sh` rejoue `.peaas/setup-scripts` (manifeste du générateur, non bloquant, rejouable) — 74 tests
-- [x] Corrections 2-6 du 11/09 (avant reprise tâche 6) : D-008 restauré (résumé qui avait perdu ses amendements), `apisix.sh` sort en erreur sans clé, `install.sh` étape 7 fait un bilan par script (sauté/appliqué/impossible), `peaas.socle_info` porte `site_id`/`generator_version`
-- [x] Tâche 6 — identifiants et interfaces d'administration (D-011, D-018) : `/api/components` expose les identifiants requis, `/api/package` refuse (400) si un identifiant manque, `.env` de l'archive (0600) porte les identifiants + est toujours émis dès qu'un est requis (avant : multisite seulement) ; `APISIX_ADMIN_KEY` : chaîne complète .env → environment du service → `${{APISIX_ADMIN_KEY}}` (syntaxe native APISIX) ; SEMP Solace + Admin API/métriques APISIX liés à `127.0.0.1`, etcd sans port du tout ; `solace-dmr.sh` lit `SOLACE_ADMIN_PASSWORD` du `.env` (avant : mot de passe `admin` fixe, aurait échoué dès qu'un vrai mot de passe était posé) — 89 tests
-- [x] Partie A (11/09, avant B/C/D) — clôture tâche 6 : deux bugs latents documentés (clé APISIX littérale, mot de passe Solace fixe) + port DMR corrigé (`host_port` du profil, renommé `passthrough_port` et retiré de `solace-dmr.sh` → port SMF/**TLS** réel du catalogue, `55443`, vérifié contre un vrai broker à la fois côté SEMPv2 et côté TLS effectif — `openssl s_client` présente le bon certificat) ; `solace-dmr.sh` sans mot de passe SEMP → ECHEC (plus de repli `admin` hors dry-run) ; identifiants confirmés transportés par le corps POST seul, jamais journalisés
-- [x] Partie B (11/09) — structure réelle des dépôts documentée (`docs/03` §Dépôts) : trois dépôts distincts, aucun déclaré sous-module ; `/mnt/web` est devenu son propre dépôt (`webapp/app/`) entre deux tours, `/mnt` retiré du suivi de son ancien contenu
-- [x] Tâche 7 (11/09) — `install.sh` : contrat de machine hôte en étape dédiée (système, conteneurs, adresse, horloge, mémoire via `memoire_min_mo` du catalogue, disque, machine dédiée par label `peaas.site`), code de sortie 4 ; `.peaas/mesures.log` horodaté par étape ; affichage/traçabilité de `.peaas/generator-version` (avertissement si `-dirty`) ; composants déterminés depuis les services réels du compose (retrait du marqueur `.peaas-component`) — 101 tests
-- [x] Tâche 7 bis (11/09, D-020) — `/api/package` refuse (409) si `PEaaSrepo/` ou le dépôt du générateur (`GENERATOR_REPO_DIR`, `/mnt/web`) ont des modifications non commitées (suivies ou non) ; `/mnt` non contrôlé. Mode essai `PEAAS_ALLOW_DIRTY=1` (variable d'environnement du générateur, jamais un champ de requête) : génération autorisée, hash suffixé `-dirty` dans `.peaas/generator-version`. Conteneur `webapp` : installe `git` au démarrage (nouveau besoin). — 111 tests (7 unitaires `repoGit.test.js` + couverture `server.test.js`, dont un banc bout en bout en mode essai)
-- [x] Partie E (11/09, points 1-7 après clôture A4) — vérifications contre le conteneur `webapp` réel (reconstruit, pas seulement les sous-processus Node des tests) : CA (`PEAAS_CA_DIR`) sans CA existante nulle part sur disque, aucune trace en historique (toutes branches) ; conteneur trouvé sur un montage obsolète (`web/app/` au lieu de `web/webapp/app/`) recréé depuis le compose actuel ; `Dockerfile` remplace `apk add`/`npm install` au démarrage, `safe.directory=*` vérifié fonctionnel en conteneur réel (uid conteneur ≠ propriétaire hôte des dépôts montés) via un vrai `POST /api/package` (409 attendu et obtenu) ; test ajouté sur le format `generator=<hash> catalogue=<hash>` de `.peaas/generator-version` (cas propre) ; test de cohérence services du compose = `.peaas/start-order` ; gitlink `PEaaSrepo` (jamais mis à jour) retiré de `/mnt`, ignoré comme `web/` ; `.gitignore` créé pour le dépôt `web` (`ca-store/`, `app/` résiduel) — 111 tests côté générateur (deux assertions ajoutées dans le banc de bout en bout existant, pas de nouveau test)
-- [x] Audit interface (11/09) — deux régressions réelles trouvées en navigateur, corrigées : sélecteurs `input[type=checkbox]`/`input:checked` non restreints à `#liste` (collision avec `#regenCert`, dépendances plus auto-cochées, identifiants plus affichés) ; `host_address`/`passthrough_port` modifiables et renvoyés au serveur (`overrides`, appliqué avant émission du certificat — contournait la traçabilité de l'adressage), désormais refusé (400) et affiché en lecture seule. Cause commune consignée (`docs/05`) : aucun test n'exécutait le JavaScript du navigateur — 8 tests jsdom ajoutés (`public/app.test.js`)
-- [x] D-021 (11/09) — le hash `generator=` de `.peaas/generator-version` pouvait ne pas correspondre au code réellement chargé (process en mémoire depuis le démarrage, hash relu sur disque à chaque génération) : `/api/package` refuse (409, « redémarrer le générateur ») si le HEAD du dépôt générateur a bougé depuis le démarrage, non contournable par `PEAAS_ALLOW_DIRTY`. Confirmé que seul le générateur est concerné : `PEaaSrepo` reste relu à chaque génération, sans mécanisme équivalent
-- [x] D-022 (11/09) — gestion de `topology.yaml` depuis l'interface (onglet Topologie), `PEaaSrepo/` remonté en RW dans `webapp/compose.yaml`, portée étroite (trois routes seulement) : **ajout** (index attribué serveur), **modification** (`host_address`/`host_cidr`/`dmr_node_name` d'un site existant — jamais id/index/passthrough_port/dmr_link_initiator ; un changement d'adresse déclenche la réémission du certificat à la génération suivante, D-013, testé), **suppression** (retire de `sites:`, `index_history` jamais touché — un ajout ultérieur reçoit toujours un index frais, jamais celui d'un site supprimé, testé ; confirmation explicite obligatoire dans l'interface avant tout appel réseau). Document candidat validé en totalité (`validateTopology`) avant chaque écriture, texte édité par positions de bloc ciblées (commentaires de `topology.yaml` préservés, pas de `yaml.dump`), commit Git dédié par opération. Nom du cluster DMR et `index_history` non modifiables nulle part sur l'interface ni l'API — intentionnel, posés une fois à la main avant le premier déploiement. Vérifié à deux reprises dans le vrai conteneur non-root, sans jamais toucher au vrai `PEaaSrepo` (copie temporaire + `docker run`, mêmes montages/utilisateur que `webapp/compose.yaml`) — 168 tests côté générateur
+- [x] Hébergement du banc tranché (D-021)
+- [x] Banc deux sites monté, lien A ↔ B vérifié
+- [x] Corrections du diagnostic du 18/09 (six points, D-023 ; installation réelle avec l'archive corrigée encore à rejouer)
+- [ ] NTP synchronisé sur A et B (clause D-017)
+- [ ] Installation réussie d'un package sur machine conforme → gel du générateur (D-015)
+- [ ] Troisième machine (site C), à arbitrer selon la mémoire disponible
 
 ## Bloqué
 
-- Mesures de la phase 2 : attendent le gel du générateur (D-015).
+- Mesures de la phase 2 : attendent le gel du générateur (D-015), lui-même
+  conditionné aux corrections ci-dessus.
 
-## Prochaine action
+## Point de méthode à conserver pour la soutenance
 
-Lot correctif (T1-T7bis) terminé. Reste avant de figer le générateur (D-015) :
-une installation réussie sur une machine réellement conforme au contrat
-(D-019), hors de ce banc de tests — voir « Bloqué » ci-dessous.
-
-## Bonus (si le temps le permet)
-
-- Manuel de préparation d'une machine conforme au contrat
-- VM prête à l'emploi conforme au contrat
+L'incident du 18/09 illustre un risque que la documentation avait inscrit par
+écrit avant qu'il ne survienne : des tests qui valident leurs propres
+hypothèses. Le mock ne pouvait pas reproduire la panne, les 111 tests passaient,
+et la première machine réelle a échoué en trente secondes. C'est l'argument à
+présenter tel quel plutôt qu'à masquer — il montre que la distinction entre
+garantie du générateur et preuve de fonctionnement, posée dès le cadrage, était
+la bonne.
 
 ## Ouvert (voir documentation, section 14)
 
 Port d'interconnexion (443 / passe-plat), nature de ce que récupère le pull de
-topologie, rotation des certificats, droits des volumes, durcissement d'`install.sh`.
+topologie, rotation des certificats, droits des volumes, durcissement
+d'`install.sh`. Le point « hébergement des trois VM » est fermé par D-021.
+
+## Bonus (si le temps le permet)
+
+- Manuel de préparation d'une machine conforme au contrat — amorcé par la
+  procédure du banc
+- VM prête à l'emploi conforme au contrat
 
 ## Phases restantes
 
 | Phase | Contenu | Critère de sortie |
 |---|---|---|
-| 0 | Adressage, dépôt, trois machines conformes au contrat (préparation hors périmètre, chronométrée une fois), chronométrage en place | Les trois liens s'établissent |
+| 0 | Adressage, dépôt, machines conformes, chronométrage en place | Les liens s'établissent — **fait pour A ↔ B** |
 | 1 | Générateur : catalogue externalisé, topologie, profil de site, certificats, script de setup | Un package généré s'installe seul, sur VM vierge ; générateur figé |
 | 2 | Site A déployé | Socle fonctionnel, temps mesuré |
 | 3 | Site B + lien A↔B | Message publié sur A reçu sur B |

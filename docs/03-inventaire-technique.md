@@ -94,6 +94,17 @@ Somme des 8 : 6272 Mo — sous le plancher du contrat (8 Go) : le socle complet
 ne l'élève jamais. `install.sh` applique le plancher si aucun composant
 retenu ne renseigne le champ.
 
+**Correction du 18/09 (D-023, première installation réelle, site B).** La
+comparaison mémoire d'`install.sh` était stricte (`MEM_TOTAL_MO -lt
+MEM_MIN_MO`), sans tolérance — une VM provisionnée à exactement le seuil
+requis n'expose jamais cette valeur à `/proc/meminfo` (réserves
+noyau/firmware : une VM à 8192 Mo alloués expose ~7,7 Go réels). La clause
+« au moins 8 Go » de la section 7.2 ne pouvait donc jamais être satisfaite
+par une machine conforme au contrat. Corrigé : tolérance de 5 % sur le seuil
+retenu (`MEM_MIN_MO_TOLERE = MEM_MIN_MO × 95 / 100`), affichée dans le
+message de succès comme dans le message d'échec (valeur exigée, valeur
+observée, tolérance appliquée).
+
 ## Machines
 
 | Site | Hôte | OS | vCPU | RAM | Disque | IP statique | NTP actif |
