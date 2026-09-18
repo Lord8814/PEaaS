@@ -249,11 +249,14 @@ Pour que cette frontière soit vérifiable, elle prend la forme d'un **contrat d
 | Adresse | Adresse IP fixe, présente sur une interface, égale à `host_address` de la topologie | Oui (bloquant) |
 | Horloge | Synchronisée sur une source de temps, indépendamment des autres sites | Oui (avertissement) |
 | Ressources | Au moins 4 vCPU, 8 Go de mémoire, 20 Go de disque ; mémoire suffisante pour les composants sélectionnés | Oui (bloquant pour la mémoire) |
+| Images | Résolution de noms fonctionnelle et images du compose disponibles : soit déjà présentes localement, soit joignables sur leur registre (miroir interne ou registre d'entreprise compris) | Oui (bloquant) |
 | Ports | Ports inter-sites déclarés au catalogue ouverts en entrée | Non — vérifié en phase 0 depuis les pairs |
 | Machine dédiée | Aucun conteneur ni réseau Docker en conflit de nom avec le socle, hors réinstallation | Oui (bloquant) |
 | Isolation | Aucune entrée `hosts` vers un autre site, aucun montage partagé, aucune configuration faisant référence aux autres machines | Non — contrôle de relecture |
 
 Le package ne répare rien sur la machine : il détecte tout ce qui le ferait échouer et refuse de s'installer en nommant la clause non respectée.
+
+La clause « Images » a été ajoutée le 18/09 après la première installation réelle (D-024) : `/etc/resolv.conf` de la machine cible pointait sur `[::1]`, Docker ne résolvait aucun registre, et l'installation a échoué **à l'étape 5**, au milieu du démarrage des composants, après avoir déjà créé l'arborescence, le réseau et déposé les certificats. Le contrat ne disait rien de la résolution de noms, sans laquelle le package ne peut pourtant rien faire. La vérification est mesurée à son objet : elle constate que les images **nécessaires** sont disponibles — une image déjà présente localement ne demande aucun réseau — et non que la machine accède à Internet.
 
 La dernière clause est la plus importante. Une préparation manuelle est précisément l'endroit où une optimisation de voisinage s'introduit sans que personne la remarque ; la règle d'isolation s'applique donc à la préparation de la machine comme au contenu du package.
 

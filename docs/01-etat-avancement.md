@@ -10,18 +10,35 @@ où en est le chantier sans qu'on ait à le réexpliquer.
 
 ## Phase en cours
 
-> Phase 1 — générateur, toujours non close. **Première tentative d'installation
-> réelle le 18/09 (site B), échouée en étape 1 d'`install.sh`. Cause établie
-> par diagnostic complet, six correctifs appliqués le même jour (D-023),
-> 171 tests verts.** Le générateur n'était pas en cause : le compose produit
-> était correct. Le défaut était dans le script d'installation et dans
-> l'interface de sélection de site — aucune décision antérieure remise en
-> cause. **Reste à faire** : rejouer l'installation réelle sur le site B (et
-> A) avec l'archive corrigée — ce lot corrige la cause diagnostiquée, il ne
-> remplace pas la vérification sur machine réelle qu'exige le critère de
-> sortie de la phase 1.
+> Phase 1 — générateur, toujours non close. Les deux sites ont été installés
+> en entier le 18/09 au soir, socle debout des deux côtés — mais **cette
+> installation ne prouve rien** : voir l'encadré ci-dessous. Deux vagues de
+> correctifs le même jour, D-023 (diagnostic du premier échec) puis D-024
+> (CRLF, contrat d'images, bruit), 181 tests verts.
+>
+> **Prochain verrou, et il est net** : restaurer les deux VM depuis
+> l'instantané `avant-premier-deploiement`, régénérer les archives **depuis
+> l'interface web**, et rejouer une installation **entièrement automatique**.
+> C'est seulement cette exécution-là qui permettra de figer le générateur
+> (D-015).
 >
 > Phase 0 close pour A ↔ B : banc monté et vérifié (D-021).
+
+## ⚠ Les installations du 18/09 ne valent pas comme preuve
+
+Elles n'ont abouti que grâce à **deux interventions manuelles sur les VM** :
+
+1. `sed -i 's/\r$//'` sur les certificats déployés, sans quoi les six appels
+   SEMPv2 de `solace-dmr.sh` échouaient en 400 « Malformed JSON » (D-024) ;
+2. correction de `/etc/resolv.conf`, qui pointait sur `[::1]` — Docker ne
+   résolvait aucun registre et l'installation mourait à l'étape 5 (D-024,
+   amendement de D-019).
+
+Le critère de sortie de la phase 1 est « un package généré s'installe seul ».
+Une installation débloquée à la main ne le satisfait pas, et **le générateur
+ne peut pas être figé sur cette base**. Les deux causes sont corrigées et
+testées ; ce qui manque est l'exécution qui le démontre, machines restaurées
+et archives régénérées.
 
 ## Diagnostic du 18/09 — première installation réelle
 
@@ -126,9 +143,13 @@ clés d'hôte SSH. Ping croisé vérifié.
 - [x] Hébergement du banc tranché (D-021)
 - [x] Banc deux sites monté, lien A ↔ B vérifié
 - [x] Corrections du diagnostic du 18/09 (six points, D-023 ; installation réelle avec l'archive corrigée encore à rejouer)
+- [x] Correctifs D-024 (CRLF des PEM, `pem_json`, clause d'images, bruit de la boucle SEMP) — 181 tests verts
 - [ ] NTP synchronisé sur A et B (clause D-017)
-- [ ] Installation réussie d'un package sur machine conforme → gel du générateur (D-015)
-- [ ] Troisième machine (site C), à arbitrer selon la mémoire disponible
+- [ ] **Installation entièrement automatique, machines restaurées, archives régénérées par l'interface** → seule voie vers le gel du générateur (D-015)
+- [ ] Lien DMR actif en mTLS entre A et B — configuration acceptée des deux côtés, lien `up:false` (`Channel(s) Down`) ; diagnostic en cours
+- [ ] Interfaces d'admin non joignables depuis le pair (D-018) — ligne jamais cochée de l'inventaire
+- [ ] Node-RED réintégré à la sélection avant la phase 3 (voir « Ouvert »)
+- [ ] Troisième machine (site C), à arbitrer selon la mémoire mesurée
 
 ## Bloqué
 
@@ -144,6 +165,24 @@ et la première machine réelle a échoué en trente secondes. C'est l'argument 
 présenter tel quel plutôt qu'à masquer — il montre que la distinction entre
 garantie du générateur et preuve de fonctionnement, posée dès le cadrage, était
 la bonne.
+
+## Ouvert — points soulevés par le lot du 18/09
+
+**La sélection déployée ne comporte pas Node-RED.** Les archives des deux
+sites portent `etcd`, `apisix`, `postgres`, `solace` : de quoi valider le
+socle et la fédération, pas la démonstration. Le scénario de la phase 3 — une
+publication sur A qui provoque une insertion dans la base de B — a besoin de
+Node-RED. À arbitrer **avant** la phase 3, en sachant que changer la
+sélection après le gel rendra les temps mesurés incomparables : c'est donc
+maintenant, ou en assumant deux séries de mesures.
+
+**Les archives de référence du lot précédent ont été produites par appel
+direct à l'API**, alors que le chemin réel est l'interface web. C'est
+précisément là que vivait le défaut de D-023 (présélection silencieuse du
+site dans `public/app.js`, serveur irréprochable) : une archive produite en
+contournant l'interface ne prouve rien sur le parcours qu'un utilisateur
+emprunte, et le temps de génération n'a de sens que mesuré sur ce parcours.
+Les archives à déployer et à chronométrer doivent venir de l'interface.
 
 ## Ouvert (voir documentation, section 14)
 

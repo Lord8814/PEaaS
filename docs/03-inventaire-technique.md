@@ -85,6 +85,7 @@ la règle du socle (régénéré par `npm install`, jamais versionné).
 |---|---|---|
 | Debian stable sans interface | Debian 13 | Debian 13 |
 | Docker Engine + Compose v2 | 29.7.2 / v5.5.0 | 29.7.2 / v5.5.0 |
+| Résolution de noms + images joignables (D-024) | à vérifier au prochain passage | **défaut constaté le 18/09** : `resolv.conf` sur `[::1]`, corrigé à la main |
 | IP fixe = `host_address` | `192.168.90.11` | `192.168.90.12` |
 | Horloge synchronisée (NTP) | à vérifier | à vérifier |
 | ≥ 4 vCPU / 8 Go / 20 Go | 4 / 8 Go / 20 Go | 4 / 8 Go / 20 Go |
@@ -228,20 +229,37 @@ exige un second broker faisant confiance à la même CA de fédération.
 
 | Test | Depuis | Vers | Résultat | Date |
 |---|---|---|---|---|
-| Connexion sur le port applicatif | A | B | | |
-| Connexion sur le port applicatif | A | C | | |
-| Connexion sur le port applicatif | B | C | | |
-| Interfaces d'admin non joignables depuis un pair | chaque site | chaque pair | | |
+| Connexion TCP sur le port DMR (55443) | A | B | établie | 18/09 |
+| Connexion TCP sur le port DMR (55443) | B | A | établie | 18/09 |
+| Handshake TLS, certificat présenté par le pair | A | B | `CN=site-b`, émis par `PEaaS Federation CA`, SAN IP `192.168.90.12` | 18/09 |
+| Handshake TLS, certificat présenté par le pair | B | A | `CN=site-a`, émis par `PEaaS Federation CA`, SAN IP `192.168.90.11` | 18/09 |
+| Lien DMR **actif** (mTLS) | A ↔ B | — | **non** — `up:false`, `failureReason: "Channel(s) Down"` des deux côtés ; diagnostic en cours | 18/09 |
+| Interfaces d'admin non joignables depuis un pair | chaque site | chaque pair | à faire | |
 | Absence de dépendance locale | — | Configuration générée relue | | |
+
+> Les deux premières lignes sont vérifiées par `openssl s_client -connect
+> <pair>:55443 -showcerts` depuis chaque site. Elles établissent que le
+> transport TLS et l'identité des certificats sont corrects **dans les deux
+> sens** — ce qui restreint utilement le champ du diagnostic du lien DMR : la
+> panne n'est ni réseau, ni certificat, ni nom de nœud.
 
 ## Certificats
 
 | Élément | Emplacement | Généré par | SAN | Expiration |
 |---|---|---|---|---|
-| Autorité de la fédération | `/srv/peaas-ca` (hôte, hors dépôt, 0700, `lord`) | Générateur | — | |
-| Certificat site A | archive A, `certs/` | Générateur | DNS + nœud DMR + IP | |
-| Certificat site B | archive B, `certs/` | Générateur | DNS + nœud DMR + IP | |
-| Certificat site C | archive C, `certs/` | Générateur | DNS + nœud DMR + IP | |
+| Autorité de la fédération | `/srv/peaas-ca` (hôte, hors dépôt, 0700, `lord`) | Générateur | `CN=PEaaS Federation CA` | 11/09/2036 |
+| Certificat site A | archive A, `certs/` | Générateur | `DNS:site-a`, `IP:192.168.90.11` | 21/12/2028 |
+| Certificat site B | archive B, `certs/` | Générateur | `DNS:site-b`, `IP:192.168.90.12` | 21/12/2028 |
+
+> Réémis le 18/09 à la génération suivant le changement d'adresse : les SAN
+> ne correspondaient plus à la topologie, la réémission s'est déclenchée
+> seule (D-013). Le certificat de CA est **identique** dans les deux
+> archives, condition du mTLS ; la clé privée de la CA n'en sort jamais.
+>
+> **Format** : LF depuis D-024. Les PEM des archives du 18/09 étaient en
+> CRLF (node-forge, RFC 1421) et ont dû être corrigés à la main sur les VM
+> pour que `solace-dmr.sh` aboutisse — ces archives-là sont périmées, il faut
+> en régénérer.
 
 **`PEAAS_CA_DIR` (historique, contrôle du 11/09, point 1 du lot correctif).**
 Initialement non défini dans `webapp/compose.yaml` : résolu par défaut à

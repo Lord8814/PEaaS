@@ -224,6 +224,25 @@ chaque service du compose et par le réseau). Code de sortie dédié : 4.
 Ports entrants et isolation restent hors de portée d'`install.sh` (non
 vérifiables depuis la machine cible), comme prévu.
 
+**Amendé (18/09, après la première installation réelle).** Une clause
+**« Images »** est ajoutée au contrat (section 7.2) : résolution de noms
+fonctionnelle et images du compose disponibles — soit déjà présentes
+localement, soit joignables sur leur registre. Motif : `/etc/resolv.conf` de
+la machine cible pointait sur `[::1]`, Docker ne résolvait aucun registre, et
+l'installation a échoué **à l'étape 5**, au milieu du démarrage des
+composants, après avoir déjà créé l'arborescence, le réseau et déposé les
+certificats. Le contrat ne disait rien de la résolution de noms, sans
+laquelle le package ne peut pourtant rien faire ; l'échec arrivait donc tard
+et dans un état à moitié installé. Vérifiée désormais à l'étape 1, avant
+toute action, bloquante, code 4.
+
+La vérification est **mesurée à son objet** : elle constate que les images
+nécessaires sont disponibles, pas que la machine accède à Internet. Une image
+déjà présente localement ne déclenche aucun appel réseau, et une machine
+servie par un miroir interne ou un registre d'entreprise satisfait la clause
+sans rien changer au script. L'interrogation se fait par
+`docker manifest inspect` — on constate l'accessibilité, on ne préfetche pas.
+
 ---
 
 ## D-020 — Génération refusée depuis un dépôt sale
@@ -270,6 +289,24 @@ Le nom du cluster DMR et l'historique des index ne sont pas modifiables depuis l
 **Raison.** Toutes les causes ont été établies par reproduction (régénération réelle d'un package identique au rapport de terrain, exécution réelle de `docker compose` sur le fichier `-f` manquant) avant toute correction — aucune hypothèse non vérifiée. Aucune décision existante (D-001 à D-022) n'est remise en cause : la cause est dans le script d'installation et l'interface de sélection de site, jamais dans l'assemblage du catalogue ni dans la validation de topologie, qui se sont révélés corrects à l'examen.
 **Écarté.** Comparer directement `docker compose config --services` sans capturer sa sortie d'erreur (aurait corrigé l'ordre des étapes mais laissé le prochain échec de commande aussi trompeur — corrigé une fois pour toutes plutôt qu'au cas par cas). Exiger le choix du site pour toute génération y compris l'aperçu/compose seul (inutile : ce fichier ne varie jamais d'un site à l'autre, D-009 — l'aurait juste rendu plus pénible sans réduire aucun risque).
 **Statut.** Retenu, implémenté (`install.sh`, `server.js`, `public/app.js`, `test-mock-docker.sh`) et testé : 171 tests verts (dont 5 nouveaux tests couvrant spécifiquement ces cinq points — `install.test.js` : échec réel remonté, service manquant distinct d'un échec de commande, tolérance mémoire ; `app.test.js` : blocage de génération sans site choisi ; `server.test.js` : dossier racine + nom de fichier par site, vérifiés par régénération réelle via le serveur). **Reste à faire** : réinstaller réellement sur le site B (et A, C) avec l'archive corrigée — ce lot corrige la cause diagnostiquée, il ne remplace pas la vérification sur machine réelle que demande le critère de sortie de la phase 1 (D-015).
+
+---
+
+## D-024 — Les PEM sortent du générateur en LF, et le JSON des scripts est échappé en entier
+**Date.** 18/09/2026
+**Décision.** Le générateur écrit **tous** les PEM en LF et normalise aussi ceux qu'il **relit** depuis `PEAAS_CA_DIR`. Indépendamment, `pem_json` de `solace-dmr.sh` neutralise tout caractère de contrôle et échappe antislash et guillemet avant de construire la chaîne JSON.
+
+**Raison.** Première installation réelle (18/09, banc A/B) : les six appels SEMPv2 de `solace-dmr.sh` échouaient en `400 {"code":27,"description":"Malformed JSON"}`. Cause établie par reproduction : `forge.pki.certificateToPem()` (node-forge 1.4.0) encode le PEM selon la **RFC 1421, qui impose CRLF** — 11 `\r` par certificat — alors que les clés privées, produites par `crypto.generateKeyPairSync` de Node, sortent en LF. D'où l'asymétrie exacte constatée dans le magasin : certificats en CRLF, clés en LF. `pem_json` n'échappait que le saut de ligne, donc réinjectait un `0x0D` brut dans une chaîne JSON, ce que la grammaire JSON interdit. Preuve que c'était la seule cause : après `sed -i 's/\r$//'` sur les PEM déployés, les six appels passent en 200 sur les deux sites.
+
+La correction porte aux **deux** endroits, et ce n'est pas une ceinture-et-bretelles : ce sont deux défauts distincts. Côté générateur, la normalisation s'applique aussi à la **lecture** du magasin, parce que D-006 réutilise la CA telle quelle d'une génération à l'autre — la CA du banc, déjà stockée en CRLF, aurait continué à empoisonner chaque archive même après correction de la seule écriture. Côté script, la garde vaut pour un PEM mal formé d'où qu'il vienne, y compris d'une source qui n'est pas ce générateur.
+
+**Écarté.** *Installer `jq` sur la machine cible* et construire le JSON avec : refusé au titre de D-019 — on n'ajoute pas d'outillage au contrat de machine hôte pour un problème qui se règle dans le script. *Réécrire les fichiers déjà stockés en CRLF dans le magasin* : refusé, un magasin de secrets ne se réécrit pas au passage (D-014) ; la normalisation en lecture suffit à ce que rien de fautif n'en sorte.
+
+**Statut.** Retenu, implémenté et testé. Côté générateur : `certs.js` (`pemLf` à l'écriture et à la lecture), quatre tests unitaires dont deux avec CA et certificat de site volontairement stockés en CRLF, plus un test bout en bout sur l'archive produite. Côté script : `pem_json` (`tr` + `awk`), deux tests. Tous échouaient avant leur correctif — le test d'archive a été vérifié en échec en restaurant temporairement l'ancien `certs.js`. 181 tests verts.
+
+**Corrigé dans le même lot, même incident.** La boucle d'attente SEMP affichait chaque tentative (`curl -sS`), produisant des dizaines de `curl: (56) Recv failure` pendant le démarrage normal du broker avant de conclure « ok SEMP joignable » — un état normal présenté comme une panne, ce que D-023 proscrit. Les tentatives sont désormais silencieuses ; la dernière erreur n'est remontée qu'à l'expiration du délai.
+
+**Conséquence sur la preuve, à ne pas perdre de vue.** Les installations du 18/09 n'ont abouti que parce que les certificats ont été corrigés **à la main sur les VM** (`sed -i 's/\r$//'`). Elles ne valent donc pas comme preuve de l'affirmation 1 et ne closent pas le critère de sortie de la phase 1 : voir l'état d'avancement pour la reprise exigée.
 
 ---
 
