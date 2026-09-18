@@ -9,8 +9,16 @@ Sert à éviter de rejuger deux fois la même chose, et à répondre en soutenan
 Format : date, décision, raison, alternatives écartées, statut.
 
 > D-005 à D-008 ont été prises dans le dépôt pendant l'implémentation ; les
-> entrées ci-dessous en sont un résumé. En cas d'écart, le texte de
-> `PEaaSrepo/docs/02-journal-decisions.md` fait foi et ce fichier est à réaligner.
+> entrées ci-dessous en sont un résumé rédigé après coup.
+>
+> **Ce fichier est le seul journal des décisions du projet, et il fait foi.**
+> `PEaaSrepo/` ne contient pas de `docs/` — il porte le catalogue, la
+> topologie et les scripts de setup, rien d'autre (D-001, `CLAUDE.md`), et la
+> frontière entre les trois dépôts est décrite dans `docs/03 § Dépôts`. Une
+> version antérieure de cet en-tête renvoyait à un
+> `PEaaSrepo/docs/02-journal-decisions.md` qui n'a jamais existé ; elle a
+> provoqué une fausse alerte le 18/09 (« journal tronqué à D-020, entrées
+> manquantes ») alors que ce fichier-ci était complet et continu.
 
 ---
 

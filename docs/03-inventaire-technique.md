@@ -44,38 +44,62 @@ la règle du socle (régénéré par `npm install`, jamais versionné).
 > La plage Docker est dérivée de l'index (D-005). Chaque site déclare son propre
 > réseau hôte : la topologie ne décrit aucun réseau commun (D-012).
 
+> Valeurs réelles depuis le 18/09 (soir) : `topology.yaml` ne porte plus
+> d'adresse d'exemple. Dérivé et vérifié depuis `validateTopology` /
+> `siteProfile`, pas recopié à la main.
+
 | Site | Index | Adresse de la VM | Réseau hôte du site | Réseau Docker | Nom d'hôte / nœud DMR |
 |---|---|---|---|---|---|
-| A | | | | `10.90.<index>.0/24` | |
-| B | | | | `10.90.<index>.0/24` | |
-| C | | | | `10.90.<index>.0/24` | |
+| A | 0 | `192.168.90.11` | `192.168.90.0/24` | `10.90.0.0/24` | `peaas-site-a` / `site-a` |
+| B | 1 | `192.168.90.12` | `192.168.90.0/24` | `10.90.1.0/24` | `peaas-site-b` / `site-b` |
+| C | ~~2~~ (brûlé) | — | — | — | — |
 
-> Les valeurs `10.124.40.10/11/12` présentes dans `topology.yaml` sont des
-> exemples, pas les adresses réelles.
+> **Index.** A porte l'index 0 et B l'index 1 : valeurs constatées dans
+> `topology.yaml`, définitives (D-005). Une version antérieure de cet
+> inventaire annonçait « index 1 et 2 » — c'était l'inventaire qui était faux.
+>
+> **Site C.** Retiré de `sites:` le 18/09 (le banc ne compte que deux
+> machines, D-021), son index 2 restant inscrit dans `index_history` :
+> l'index est brûlé à jamais. Une troisième machine recevra l'index **3**,
+> jamais 2 — donc la plage Docker `10.90.3.0/24`.
+>
+> **Réseau hôte commun à A et B.** Les deux VM sont aujourd'hui sur le même
+> réseau NAT VirtualBox, d'où le même `host_cidr`. Ce n'est un fait que du
+> banc : la validation ne compare jamais les réseaux hôtes entre sites
+> (D-012), et aucune configuration générée n'en tire parti.
 >
 > Règles : aucune plage Docker commune entre sites ; aucune plage Docker
 > recouvrant l'adresse d'un pair ; aucun nom ni adresse résoluble seulement
-> depuis le réseau du PoC.
+> depuis le réseau du PoC. Les trois vérifiées par script sur la topologie
+> réelle (barrière 1 du lot du 18/09 au soir).
+>
+> **Lien DMR.** Politique `lowest_index` : A (index 0) ouvre la connexion TCP
+> vers B (index 1) sur `55443`. B n'initie rien.
 
 ## Contrat de machine hôte (D-019)
 
 > La préparation de la machine est hors périmètre du package. Chaque machine
 > doit respecter le contrat de la documentation, section 7.2.
 
-| Clause | A | B | C |
-|---|---|---|---|
-| Debian stable sans interface | | | |
-| Docker Engine + Compose v2 | | | |
-| IP fixe = `host_address` | | | |
-| Horloge synchronisée (NTP) | | | |
-| ≥ 4 vCPU / 8 Go / 20 Go | | | |
-| Ports inter-sites ouverts en entrée (testé depuis les pairs) | | | |
-| Aucun conteneur/réseau Docker en conflit | | | |
-| Isolation : aucune entrée `hosts` vers un pair, aucun montage partagé | | | |
-| Durée de préparation (information) | | | |
+| Clause | A | B |
+|---|---|---|
+| Debian stable sans interface | Debian 13 | Debian 13 |
+| Docker Engine + Compose v2 | 29.7.2 / v5.5.0 | 29.7.2 / v5.5.0 |
+| IP fixe = `host_address` | `192.168.90.11` | `192.168.90.12` |
+| Horloge synchronisée (NTP) | à vérifier | à vérifier |
+| ≥ 4 vCPU / 8 Go / 20 Go | 4 / 8 Go / 20 Go | 4 / 8 Go / 20 Go |
+| Ports inter-sites ouverts en entrée (testé depuis les pairs) | à vérifier | à vérifier |
+| Aucun conteneur/réseau Docker en conflit | à vérifier | à vérifier |
+| Isolation : aucune entrée `hosts` vers un pair, aucun montage partagé | à vérifier | à vérifier |
+| Durée de préparation (information) | | |
 
-> Vérifié par `install.sh` (tâche 7, 11/09) sauf ports entrants et isolation
-> (non vérifiables depuis la machine cible). Code de sortie dédié : 4.
+> Colonne C retirée : le banc ne compte que deux machines (cf. Plan
+> d'adressage). Les cases « à vérifier » le seront à l'installation réelle :
+> `install.sh` contrôle toutes ces clauses sauf les ports entrants et
+> l'isolation, non vérifiables depuis la machine cible. Code de sortie
+> dédié : 4. NTP n'a jamais été activé sur les clones — un échec sur cette
+> clause est attendu et se corrige sur la machine, jamais dans le script
+> (frontière D-019).
 
 ### Mémoire minimale par produit (`memoire_min_mo`, catalogue)
 
@@ -109,12 +133,18 @@ observée, tolérance appliquée).
 
 | Site | Hôte | OS | vCPU | RAM | Disque | IP statique | NTP actif |
 |---|---|---|---|---|---|---|---|
-| A | | Debian sans interface | 4 | 8 Go | 20 Go | | |
-| B | | Debian sans interface | 4 | 8 Go | 20 Go | | |
-| C | | Debian sans interface | 4 | 8 Go | 20 Go | | |
+| A | `peaas-site-a` | Debian 13 sans interface | 4 | 8 Go | 20 Go | `192.168.90.11` | à vérifier |
+| B | `peaas-site-b` | Debian 13 sans interface | 4 | 8 Go | 20 Go | `192.168.90.12` | à vérifier |
 
-> Aucune VM ne partage un hôte avec une autre. Si le cas se produisait,
-> aucune configuration ne doit en tirer parti.
+> Les deux VM sont clonées d'un même modèle, avec identité régénérée site par
+> site après clonage (nom d'hôte, `machine-id`, clés d'hôte SSH). Réseau NAT
+> VirtualBox `MultiSite`, DHCP désactivé (D-021). Accès depuis l'hôte :
+> `ssh -p 2211 lord@127.0.0.1` (A) et `-p 2212` (B) — redirections de ports
+> portées par l'hôte VirtualBox, non joignables depuis un autre environnement.
+>
+> Les deux VM partagent le même hyperviseur — c'est une contrainte du banc, pas
+> du socle : aucune configuration générée n'en tire parti, et rien dans la
+> topologie ne décrit de réseau commun (D-012).
 
 ## Composants par site
 
