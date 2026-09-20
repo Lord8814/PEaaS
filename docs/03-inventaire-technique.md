@@ -270,6 +270,17 @@ exige un second broker faisant confiance à la même CA de fédération.
 > CRLF (node-forge, RFC 1421) et ont dû être corrigés à la main sur les VM
 > pour que `solace-dmr.sh` aboutisse — ces archives-là sont périmées, il faut
 > en régénérer.
+>
+> **Extensions et format d'émission (D-025, 20/09).** Le certificat de site
+> porte `basicConstraints CA:FALSE`, `keyUsage` (signature numérique,
+> chiffrement de clé), `extKeyUsage` (serveur **et** client TLS), ses SAN, un
+> `subjectKeyIdentifier` et un **`authorityKeyIdentifier` égal au SKI de la
+> CA**. Le numéro de série est un entier DER minimal — avant le 19/09, un
+> tirage sur 512 produisait un entier non minimal qu'OpenSSL refusait.
+> Le magasin porte en plus, par site, un fichier `sites/<id>/format` : la
+> version du format d'émission (2 aujourd'hui). Une marque absente ou
+> périmée **réémet** le certificat à la génération suivante, sans `--force`.
+> Ce fichier ne sort jamais dans une archive.
 
 **`PEAAS_CA_DIR` (historique, contrôle du 11/09, point 1 du lot correctif).**
 Initialement non défini dans `webapp/compose.yaml` : résolu par défaut à
@@ -280,6 +291,30 @@ de `/mnt` (toutes branches) ne portait aucune trace de `ca-store`,
 `*.key.pem` ni `.env`. Depuis (D-006, voir « Installation du générateur »
 ci-dessous), `PEAAS_CA_DIR` est défini explicitement et le générateur
 refuse de démarrer s'il ne l'est pas.
+
+## Fédération DMR — objets configurés par site (D-026)
+
+`solace-dmr.sh` pose, sur le broker de chaque site, dans cet ordre :
+
+| Ordre | Objet SEMPv2 | Rôle |
+|---|---|---|
+| 1 | `PATCH /SEMP/v2/config` `tlsServerCertContent` | certificat serveur du broker (clé + chaîne) |
+| 2 | `certAuthorities/peaas-federation-ca` | CA de la fédération, pour valider les pairs |
+| 3 | `dmrClusters/<préfixe>-<site>` | cluster **propre au site**, `directOnlyEnabled` |
+| 3b | `PATCH` du cluster, `authenticationClientCertContent` | certificat **présenté** par ce nœud quand il initie |
+| 3c | `certMatchingRules/peaas-federation` + sa condition | sans elle, le pair refuse la session |
+| 4a | `msgVpns/<vpn>/dmrBridges/<nœud pair>` | relie le VPN au maillage, avec `remoteMsgVpnName` |
+| 4b | `dmrClusters/<cluster>/links/<nœud pair>` | lien externe, mTLS, désactivé à la création |
+| 4c | `.../links/<nœud>/remoteAddresses` | adresse du pair, **seulement si ce site initie** |
+| 4d | `PATCH` du lien, `enabled:true` | activation, en dernier |
+
+Le pont (4a) est posé **avant** l'activation du lien : le broker juge la
+validité d'un lien à son activation et ne la rejuge pas ensuite. Le port du
+lien est le SMF/TLS du catalogue (55443), jamais un champ du profil.
+
+Un cluster déjà créé en mode garanti bloque le rejeu (`directOnlyEnabled` est
+en lecture seule après création) : le script le détecte et indique la
+suppression à faire.
 
 ## Installation du générateur
 
