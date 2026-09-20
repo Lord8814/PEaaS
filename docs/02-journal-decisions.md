@@ -347,6 +347,100 @@ La correction porte aux **deux** endroits, et ce n'est pas une ceinture-et-brete
 
 ---
 
+## D-028 — Identifiants validés par type à la génération
+**Date.** 20/09/2026
+**Décision.** Chaque identifiant du catalogue porte un type (`email`,
+`motdepasse`, `identifiant`, `texte`) et ses contraintes. Le générateur valide
+toutes les valeurs saisies avant d'ouvrir le flux d'archive et refuse la
+génération en 400 en nommant chaque identifiant fautif, sans jamais reproduire
+la valeur saisie.
+**Raison.** D-011 imposait la saisie sans valeur par défaut, mais pas le format.
+Une valeur syntaxiquement impossible (`g` comme adresse pgAdmin) produisait un
+paquet qui ne pouvait pas fonctionner, et le défaut n'apparaissait qu'après le
+déploiement, en boucle de redémarrage sur la VM.
+**Coût.** Le catalogue porte une information de plus par identifiant, à
+maintenir quand un produit change ses exigences. La validation syntaxique ne
+garantit pas que l'identifiant soit accepté par le produit : elle écarte
+l'impossible, pas l'incorrect.
+**Écarté.** Valeur par défaut de repli (interdite par D-011, et masquerait le
+défaut). Validation côté interface seule (contournable par appel direct à
+l'API, la voie même où se logeait D-023). Vérification de délivrabilité
+(exigerait le réseau à la génération).
+**Statut.** Retenu, implémenté et testé.
+
+**Règles retenues, et d'où elles viennent.** Les contraintes ont été relevées
+dans les images elles-mêmes, pas supposées — c'est le point sur lequel une
+règle inventée aurait rendu la validation soit inutile, soit bloquante.
+- `email` : un `@`, une partie locale non vide, un domaine avec au moins un
+  point. C'est exactement ce que contrôle `dpage/pgadmin4:latest`
+  (`entrypoint.sh` → `pgadmin/utils/validation_utils.validate_email`, avec
+  `CHECK_EMAIL_DELIVERABILITY=False` et `GLOBALLY_DELIVERABLE=True`). Les douze
+  cas limites ont été passés au vrai validateur de l'image avant d'écrire la
+  règle.
+- `PGADMIN_DEFAULT_PASSWORD` : `longueur_min: 6`, valeur déclarée par l'image
+  (`config.py`, `PASSWORD_LENGTH_MIN = 6`) — et non 8. **À connaître** : par la
+  voie des variables d'environnement, l'image ne contrôle en réalité *aucune*
+  longueur (le contrôle ne vit que dans le chemin interactif de
+  `pgadmin/setup/user_info.py`). Le 6 est donc le plancher que pgAdmin déclare
+  pour lui-même, repris tel quel plutôt qu'un seuil plus strict inventé ici.
+- `APISIX_ADMIN_KEY` et `SOLACE_ADMIN_PASSWORD` : `sans_espace`. Pour APISIX,
+  la clé est substituée dans un scalaire YAML **non quoté** de `config.yaml`
+  (`key: ${{APISIX_ADMIN_KEY}}`) puis comparée à un en-tête HTTP. Pour Solace,
+  `scripts/setup/solace-dmr.sh` relit le mot de passe du `.env` avec
+  `tr -d '\042\047[:space:]'`, qui **supprime tout espace** : un mot de passe à
+  espace interne serait accepté par le broker puis mutilé par le script de
+  fédération, et l'authentification SEMP échouerait sans rien dire.
+- Longueur minimale par défaut (8) pour les autres mots de passe : c'est une
+  règle du socle, **pas** une exigence des images (postgres:16 et Grafana n'en
+  imposent aucune). Assumée comme telle.
+
+**Portée du refus.** Le 400 est unique et liste *tous* les identifiants
+fautifs — absents comme malformés — avec pour chacun nom, composant, libellé et
+raison, dans un champ structuré que l'interface pose à côté du bon champ. La
+valeur saisie n'apparaît nulle part : ni dans la réponse, ni dans les journaux
+du générateur, adresse de connexion comprise. Vérifié sur un générateur réel,
+témoin de bon fonctionnement du contrôle à l'appui.
+
+**Effet de bord voulu.** Un champ requis laissé vide est désormais intercepté à
+la saisie : la requête ne part plus. Le garde-fou serveur correspondant (un
+corps sans champ `identifiants` du tout — le bug de sélecteur DOM de D-023)
+reste couvert côté serveur.
+
+---
+
+## D-029 — Démarrage validé sur la stabilité, pas sur l'instant
+**Date.** 20/09/2026
+**Décision.** `install.sh` ne déclare un composant démarré que s'il est
+`running` et que son `RestartCount` n'a pas augmenté après un délai de
+vérification. Toute attente de disponibilité porte un délai maximum, et tout
+message d'échec reprend la dernière erreur réellement observée au lieu
+d'énumérer des causes possibles.
+**Raison.** Le 20/09 sur le site A, l'installation a affiché `OK pgadmin
+running` alors que le conteneur redémarrait en boucle — 54 redémarrages. Une
+barrière qui teste un état instantané laisse passer un déploiement inutilisable,
+ce qui invaliderait une passe chronométrée.
+**Coût.** Quelques secondes de plus par composant à chaque installation.
+**Statut.** Retenu, implémenté et testé.
+
+**Ce qui a changé concrètement.** Un composant instable **arrête** désormais
+l'installation avec le **code de sortie 5** (distinct de 1, réseau, et de 4,
+contrat de machine hôte) — auparavant un simple `WARN` laissait la suite se
+dérouler. Deux attentes sans issue nommée ont été bornées : celle de l'état
+`running` (60 s en dur, sans message) et celle de `etcdctl endpoint health`
+(dix tours muets, qui laissaient continuer en silence un etcd qui ne répondait
+jamais). Le tableau de l'étape 6 porte en plus le `RestartCount` : un compteur
+non nul sur une installation neuve se voit d'un coup d'œil.
+
+**Méthode.** Le mock `docker` a d'abord été rendu capable de **reproduire la
+panne** — `MOCK_RESTARTING` répond `running` au premier appel puis `Restarting`
+avec un compteur qui monte, `MOCK_JAMAIS_PRET` reste indéfiniment en `created`.
+Même méthode que pour le mock qui avalait les `-f` (D-023/D-024) : sans elle,
+aucun test ne pouvait constater le défaut. Le test du cas réel échouait bien
+avant correction, sur la bonne raison — `OK apisix running` affiché sur un
+conteneur en boucle.
+
+---
+
 ## D-XXX — *(modèle)*
 **Décision.**
 **Raison.**

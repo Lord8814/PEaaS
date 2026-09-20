@@ -7,7 +7,7 @@ général et la carte des documents, voir `00-vue-ensemble.md`.
 
 # État d'avancement — PEaaS multi-site
 
-**Dernière mise à jour :** 20/09/2026 (nuit)
+**Dernière mise à jour :** 20/09/2026 (nuit) — séance « identifiants typés et barrière de démarrage stable »
 
 ## Phase en cours
 
@@ -152,6 +152,59 @@ a journalisé `OriginalClientUsername(site-a)`, nom qui ne peut venir que du CN
 du certificat. L'élimination tient ; c'est la conclusion « le modèle de cluster
 n'est pas en cause » qui, elle, était fausse (D-026).
 
+## Séance du 20/09 — le paquet du site A ne pouvait pas fonctionner
+
+Prompt : validation typée des identifiants et barrière de démarrage stable.
+Commits locaux, aucun push. Suite : **251 tests verts, 1 sauté** (le test
+d'intégration Solace, qui demande un vrai broker — inchangé).
+
+Deux défauts distincts, tous deux partis du même incident : `g` saisi comme
+adresse pgAdmin à la génération, accepté, puis pgAdmin en boucle de
+redémarrage sur la VM sans que l'installation le signale.
+
+**Défaut 1 — le générateur acceptait n'importe quelle valeur (D-028).** Chaque
+identifiant du catalogue porte désormais un type (`email`, `motdepasse`,
+`identifiant`, `texte`) et ses contraintes, validés côté serveur **avant
+l'ouverture du flux d'archive** — vérifié : le refus précède aussi l'émission
+du certificat de site, et le magasin de CA reste intact. Le 400 est unique et
+liste *tous* les fautifs, avec nom, composant, libellé et raison ; la valeur
+saisie n'apparaît ni dans la réponse ni dans les journaux, adresse comprise.
+
+Les règles ont été relevées **dans les images**, pas supposées : les douze cas
+limites du type `email` ont été passés au vrai validateur de
+`dpage/pgadmin4:latest`, et `longueur_min: 6` vient de son `config.py`. À
+connaître : par la voie des variables d'environnement, l'image ne contrôle en
+réalité aucune longueur de mot de passe — le 6 est le plancher que pgAdmin
+déclare pour lui-même, pas un seuil inventé ici. Le `sans_espace` d'APISIX et
+de Solace tient à leurs consommateurs réels (scalaire YAML non quoté ;
+`tr -d '[:space:]'` dans `solace-dmr.sh`).
+
+**Défaut 2 — `install.sh` déclarait `OK` un conteneur qui mourait en boucle
+(D-029).** Un composant n'est `OK` que s'il est `running` **et** que son
+`RestartCount` n'a pas bougé après un délai de vérification. Un composant
+instable arrête l'installation avec un **code de sortie 5** dédié, ses
+journaux à l'appui, et le message reprend la dernière erreur *réellement
+observée*. Deux attentes sans issue nommée ont été bornées : l'état `running`
+(60 s en dur, muet) et `etcdctl endpoint health` (dix tours muets).
+
+**Méthode, dans les deux cas : le mock avant le correctif.** Le mock `docker`
+a d'abord appris à produire la panne — `running` au premier appel puis
+`Restarting` avec un compteur qui monte — et le test a été constaté en échec
+sur la bonne raison (`OK apisix running` affiché sur un conteneur en boucle)
+avant de toucher à `install.sh`. Même méthode que pour le mock qui avalait les
+`-f` (D-023/D-024).
+
+**Un test d'interface a changé de sens, volontairement.** Un champ requis
+laissé vide est désormais intercepté à la saisie : la requête ne part plus, et
+le test qui vérifiait qu'un corps `identifiants: {}` était bien envoyé vérifie
+maintenant qu'aucune requête ne part. Le garde-fou serveur correspondant — un
+corps sans champ `identifiants` du tout, le bug de sélecteur DOM de D-023 —
+reste couvert par `server.test.js`.
+
+**Les durées du 20/09 ne sont pas des mesures** et ne sont reportées nulle
+part : DNS modifié à la main sur les deux VM, et une boucle de redémarrage non
+détectée par l'installation (`05-journal-mesures.md`).
+
 ## Ce qui reste avant la preuve sur machines
 
 Le banc local ne prouve rien sur les VM : il a servi à trouver les causes, pas
@@ -228,6 +281,8 @@ Sélection de composants déployée : `etcd`, `apisix`, `postgres`, `solace`.
 - [x] Instantanés `avant-premier-deploiement` pris sur les deux VM
 - [x] Test intermittent `certs.test.js` : cause établie et corrigée (19/09 nuit)
 - [x] Ponts DMR et certificat client de cluster dans `solace-dmr.sh` (19/09 nuit)
+- [x] Identifiants validés par type avant le flux d'archive (D-028)
+- [x] Démarrage validé sur la stabilité, délai maximum sur toute attente (D-029)
 - [x] AKI et marque de format d'émission des certificats (D-025, 20/09)
 - [x] Lien DMR actif **sur banc**, message A → B reçu **sur banc** (D-026, 20/09)
 - [x] Audit des messages d'échec d'`install.sh` : trois corrigés (20/09)
@@ -309,6 +364,7 @@ nos essais.
 | 19/09 (soir) | CRLF, clause Images, tolérance mémoire, mock docker commités. Pont DMR identifié par le broker comme cause |
 | 19/09 (nuit) | Test intermittent élucidé (sérial DER). Ponts DMR et certificat client de cluster dans le script. Édition Standard hors de cause. Blocage réduit à une « Certificate Error » sur le pont |
 | 20/09 (nuit) | AKI et marque de format des certificats (D-025). Lien DMR débloqué : règle de correspondance, mode direct, un cluster par site (D-026). **Message A → B reçu sur banc.** Trois messages d'échec d'`install.sh` corrigés |
+| 20/09 | Identifiants typés et validés avant l'archive (D-028) ; barrière de démarrage stable, délais maximums, code de sortie 5 (D-029). Mock `docker` capable de produire une boucle de redémarrage. 251 tests verts |
 
 ## Phases restantes
 

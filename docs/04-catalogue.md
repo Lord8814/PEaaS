@@ -17,12 +17,39 @@ dans le même dossier. Ce fichier en est la spécification.
 | `compose` | Bloc de service compose (clé de service au ras de la marge, indentation 0). Le générateur le réindente sous `services:` et ajoute le réseau `peaas` | oui |
 | `variables` | Variables `${NOM}` et leur `defaut` (jamais pour un identifiant) ; substituées à la lecture du catalogue | oui |
 | `ports` | Ports internes et exposés, avec leur liaison (`toutes` / `local`) — descriptif | oui |
-| `identifiants` | Liste `{ variable, libelle }` à saisir à la génération ; aucune valeur par défaut | non |
+| `identifiants` | Liste `{ variable, libelle, type, ... }` à saisir à la génération ; aucune valeur par défaut. Le `type` est **obligatoire** dès qu'un identifiant est déclaré (D-028) — voir ci-dessous | non |
 | `fichiers_config` | Gabarits à monter : `{ gabarit: <nom dans le dossier produit>, montage: <chemin dans l'archive>, ro: <bool> }` | non |
 | `depend_de` | Autres produits requis | non |
 | `incompatible_avec` | Produits mutuellement exclusifs | non |
 | `script_setup` | Script de configuration neutre rejoué à l'installation | non |
 | `ordre_demarrage` | Position dans l'ordre de démarrage | non |
+
+### Types d'identifiant (D-028)
+
+Chaque entrée de `identifiants` porte un `type`. Un type inconnu, ou absent,
+fait échouer le **chargement du catalogue** — pas la génération : un catalogue
+invalide doit se voir au démarrage, pas au premier paquet produit.
+
+| Type | Règle | Contraintes acceptées |
+|---|---|---|
+| `email` | Un `@`, une partie locale non vide, un domaine avec au moins un point. Syntaxe seule : aucune résolution DNS, aucune vérification de délivrabilité | — |
+| `motdepasse` | Longueur minimale, pas d'espace en bordure | `longueur_min` (défaut 8), `sans_espace` |
+| `identifiant` | Non vide, sans espace | `sans_espace` (implicite) |
+| `texte` | Non vide | — |
+
+Pour **tous** les types : les caractères de contrôle et les sauts de ligne sont
+refusés — une valeur multiligne casserait le `.env` de l'archive, comme les
+CRLF dans les PEM l'avaient fait pour SEMP (D-024).
+
+`sans_espace: true` se déclare quand le **consommateur** de la valeur ne tolère
+pas l'espace : la clé APISIX est substituée dans un scalaire YAML non quoté,
+et `solace-dmr.sh` relit le mot de passe Solace avec un `tr -d '[:space:]'` qui
+le mutilerait.
+
+La règle d'un produit se relève **dans le produit**, pas au jugé : `longueur_min: 6`
+pour pgAdmin vient de `config.py` (`PASSWORD_LENGTH_MIN = 6`) de l'image, et la
+règle `email` reproduit ce que son `entrypoint.sh` contrôle réellement. Le
+défaut de 8 caractères, lui, est une règle du socle, assumée comme telle.
 
 ## Structure d'une entrée cas d'usage
 

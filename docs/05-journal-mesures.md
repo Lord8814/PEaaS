@@ -412,3 +412,33 @@ l'archive, c'est-à-dire l'endroit où le défaut n'était pas.
 **Ce que ça dit pour les mesures à venir** : les durées du 18/09 sont
 inexploitables et ne sont pas relevées. Les deux VM ont un instantané
 `avant-premier-deploiement` ; toute mesure partira de là.
+
+### 20/09 — la passe du site A n'est pas une mesure
+
+Deux raisons, chacune suffisante à elle seule pour écarter les durées relevées
+ce jour-là.
+
+- **DNS modifié à la main sur les deux VM.** L'installation ne s'est déroulée
+  qu'après une intervention manuelle sur la résolution de noms, hors du
+  périmètre du script (D-019 : la préparation de la machine n'est pas de son
+  ressort). Une passe qui a demandé une réparation en cours de route ne
+  chronomètre pas ce qu'elle prétend chronométrer.
+- **pgAdmin en boucle de redémarrage, non détectée par l'installation.**
+  L'installation a affiché `OK pgadmin running` et s'est terminée en succès
+  alors que le conteneur mourait en boucle — 54 redémarrages
+  (`docker inspect -f '{{.State.ExitCode}} {{.RestartCount}}' pgadmin` →
+  `0 54`), sur une cause parfaitement lisible dans ses journaux (`'g' does not
+  appear to be a valid email address.`). Un déploiement inutilisable a donc été
+  déclaré réussi.
+
+**C'est le second point qui compte pour les mesures à venir** : tant qu'une
+barrière teste un état instantané, *aucune* durée d'installation n'est
+interprétable, puisque « terminé avec succès » ne veut rien dire. Corrigé par
+D-029 (stabilité vérifiée, délai maximum sur toute attente, code de sortie 5
+dédié) ; la cause amont — un identifiant syntaxiquement impossible accepté à la
+génération — est corrigée par D-028.
+
+**Aucune durée du 20/09 n'est reportée dans les tableaux ci-dessus.** La
+première passe mesurable sera celle qui part d'un instantané
+`avant-premier-deploiement`, sans intervention manuelle, avec un générateur
+portant D-028 et un `install.sh` portant D-029.

@@ -394,7 +394,7 @@ un instant) — se referme dès `docker compose restart webapp`.
 
 | Route | Rôle | Écrit quelque part ? |
 |---|---|---|
-| `GET /api/components` | Catalogue vu par l'interface : libellé, dépendances, identifiants requis | non |
+| `GET /api/components` | Catalogue vu par l'interface : libellé, dépendances, identifiants requis avec leur type et leurs contraintes (D-028) — jamais de valeur | non |
 | `GET /api/sites` | Sites de `topology.yaml`, validés au passage | non |
 | `POST /api/compose` | Aperçu du `docker-compose.yaml` assemblé | non |
 | `POST /api/package` | **Génère l'archive d'un site** (tar.gz) | non — lit le catalogue, écrit dans le magasin CA si un certificat doit être émis |
