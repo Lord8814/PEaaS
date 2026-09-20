@@ -7,7 +7,7 @@ général et la carte des documents, voir `00-vue-ensemble.md`.
 
 # État d'avancement — PEaaS multi-site
 
-**Dernière mise à jour :** 19/09/2026 (nuit)
+**Dernière mise à jour :** 20/09/2026 (nuit)
 
 ## Phase en cours
 
@@ -15,8 +15,10 @@ général et la carte des documents, voir `00-vue-ensemble.md`.
 > composants tournent, APISIX et PostgreSQL sont configurés. **Mais les
 > installations du 18 et du 19/09 ont été débloquées par des modifications
 > manuelles sur les VM : elles ne valent pas comme preuve et ne closent pas la
-> phase.** Le lien DMR entre A et B n'est toujours pas actif (voir « Le point
-> bloquant »).
+> phase.** Le lien DMR, lui, est **résolu** : sur banc local, le script seul
+> fait monter le lien entre deux brokers et un message publié sur A est reçu
+> sur B (D-026). Reste à le refaire sur les deux VM, depuis une archive
+> produite par l'interface.
 
 ## Pourquoi les installations du 18/09 ne comptent pas
 
@@ -99,57 +101,86 @@ PEaaSrepo `56535a6`, web `29e2dfe`. **Nécessaire, pas suffisant** (ci-dessous).
 (archive générée depuis l'interface — redémarrer `webapp` avant, D-021 refusera
 sinon), tâche 6, texte documentaire pour le journal et l'inventaire.
 
-## Le point bloquant
+## Séance du 20/09 (nuit) — le lien DMR monte, et un message traverse
 
-Le lien DMR reste `up:false`, `failureReason: "Channel(s) Down"`.
+Prompt : traçabilité du générateur et format des certificats. Commits locaux,
+aucun push. Suite : 206 tests verts.
 
-Éliminés formellement : le réseau, le TLS, les certificats (vérifiés dans les
-deux sens par `openssl s_client`), les noms de nœuds, l'adresse et le port du
-lien, l'édition Standard.
+**Traçabilité (tâche 1) : rien à corriger, la question est tranchée.** Le
+contrôle demandé existe depuis le 11/09 — c'est D-021, avec ses trois tests.
+Les deux archives du 19/09 portaient le même hash parce que `webapp` avait
+démarré à 21:12:35, après le commit `29e2dfe` : le code exécuté était bien
+celui annoncé. Sans redémarrage, la génération aurait été refusée en 409.
 
-Deux causes réelles ont été trouvées et levées le 19/09, nommées par le broker
-lui-même dans son journal de débogage : le `dmrBridge` absent sur le VPN
-`default`, puis ce même pont créé sans `remoteMsgVpnName`. Une troisième,
-documentée, l'a été dans la nuit : le certificat client du cluster absent.
+**AKI (tâche 2) : vrai manque, corrigé.** Les certificats de site n'avaient pas
+d'`authorityKeyIdentifier` (RFC 5280 § 4.2.1.1), et `openssl verify
+-x509_strict` refusait la chaîne. Valeur dérivée du SKI de la CA, jamais
+écrite en dur (D-025).
 
-**État reproduit sur banc local (deux brokers, même image).** Avec les trois
-correctifs, l'initiateur ouvre bien la connexion TLS (TLSv1.3) vers le pair,
-puis le pair **rejette le pont** :
-`VPN_BRIDGING_LINK_REJECTED ... rejected: Certificate Error` côté A,
-`SYSTEM_CLIENT_CONNECT_AUTH_FAIL ... #cluster/site-a ... Certificate Error`
-côté B, sur le VPN `#cluster` comme sur `default`. **Cause non établie.**
+**Format d'émission (tâche 3) : corrigé.** Une marque de version par certificat
+dans le magasin ; marque absente ou périmée → réémission sans `--force`. Sans
+elle, une correction de format ne s'applique jamais aux certificats déjà émis
+— c'est précisément ce qui avait fait croire, le 19/09, que la piste AKI était
+écartée (D-025, amende D-013).
 
-Écarté par expérience :
-- le certificat et la CA : le **même** certificat de site-a est accepté par B
-  en MQTT/TLS (authentification par certificat client, nom d'utilisateur tiré
-  du CN) ;
-- l'absence d'Authority Key Identifier : certificat conforme en
-  `-x509_strict`, même refus ;
-- une règle de correspondance (`certMatchingRules`, condition `issuer`) ;
-- `tlsTrustedCommonNames` sur le lien du côté B ;
-- un cluster DMR par site au lieu d'un nom partagé.
+**Lien DMR (tâche 4) : débloqué, avec ses motifs.** Quatre observations, une
+variable changée à la fois, sur deux brokers réels :
 
-Réserves : les derniers essais ont tourné sur un hôte saturé (deux brokers sur
-8 Go, charge > 17) ; les refaire un broker à la fois ou sur les vraies VM. Et
-une première mesure « aucune socket » faite pendant la séance était fausse
-(55443 cherché en `D753` au lieu de `D893` dans `/proc/net/tcp`) : si le constat
-« aucune socket » des VM venait de `/proc/net/tcp`, le revérifier.
+| Condition manquante | Ce que dit le broker |
+|---|---|
+| Certificat client du cluster | aucune connexion émise, aucune erreur |
+| Règle de correspondance de certificat | `Login Response: Certificate Error` (A) / `Unauthorized: Certificate Error` (B) |
+| Mode direct seul (cluster créé en garanti) | `Bind to Durable Queue #cluster: … failed, reason: Unknown Queue` |
+| Un cluster DMR par site | lien `up`, mais **aucun message ne traverse** |
 
-Où lire : `event.log` du broker n'est **pas** sur la sortie standard du
-conteneur — `sudo docker exec solace tail -200 /usr/sw/jail/logs/event.log` ;
-les causes de pont sont dans `/usr/sw/jail/logs/debug.log`.
+**Résultat sur banc** : script seul, rejoué sur deux brokers vierges → lien
+`up:true` des deux côtés, ponts `up:true`, et **message publié sur A reçu par
+un abonné sur B**. C'est l'affirmation 3, sur banc local et pas encore sur les
+VM.
 
-Le dossier de preuves `diagnostic-lien-dmr-en-cours.md` cité par le prompt
-**n'existe pas** dans `/mnt` : à retrouver ou à considérer comme perdu.
+**Messages d'échec d'`install.sh` (tâche 5) : audit fait.** Dix-sept `mourir`
+sur vingt nommaient déjà l'action et la sortie réelle. Trois non : démon
+Docker injoignable, création du réseau, conteneurs non démarrés. Corrigés,
+après avoir complété le mock `docker`, incapable de produire ces trois pannes
+— donc aucun test ne pouvait les détecter.
 
-## Décision à ne pas prendre
+**Une élimination du 19/09 corrigée.** Il y était écrit que le test MQTT
+écartait le certificat. L'objection était fondée sur le principe, mais le test
+avait bien exercé la validation d'un certificat **client** : l'authentification
+par certificat client avait été activée sur le VPN avant l'essai, et le broker
+a journalisé `OriginalClientUsername(site-a)`, nom qui ne peut venir que du CN
+du certificat. L'élimination tient ; c'est la conclusion « le modèle de cluster
+n'est pas en cause » qui, elle, était fausse (D-026).
 
-Le passage à **un cluster DMR par site** avait été envisagé comme correction.
-Il ne l'est pas : `remoteClusterName` a été refusé par le broker en
-`Unexpected Parameter`, ce champ n'est pas configurable sur un lien dans cette
-version. Le prompt `prompt-claude-code-modele-dmr.md` qui le prescrivait est
-caduc. (Essayé sur banc le 19/09 nuit, sans `remoteClusterName` : aucun effet
-sur la « Certificate Error ».)
+## Ce qui reste avant la preuve sur machines
+
+Le banc local ne prouve rien sur les VM : il a servi à trouver les causes, pas
+à clore la phase. Restent, dans l'ordre :
+
+1. Restaurer les deux VM depuis `avant-premier-deploiement`.
+2. Régénérer les deux archives **depuis l'interface** (redémarrer `webapp`
+   d'abord : le code a changé, D-021 refuserait sinon).
+3. Installer B puis A, sans toucher aux machines.
+4. Vérifier le lien `up:true` des deux côtés **et** le passage d'un message.
+5. Geler le générateur (D-015).
+
+Sur banc, l'hôte de développement a saturé pendant les essais (deux brokers,
+8 Go, charge au-delà de 17) : les clients de test y perdaient leur connexion
+en « Too Many TCP Retransmissions ». Sur les VM, ce problème n'existe pas.
+
+## Décision renversée le 20/09 : un cluster DMR par site
+
+Le 19/09, le passage à **un cluster par site** avait été écarté au motif que
+`remoteClusterName` était refusé par le broker en `Unexpected Parameter`. Le
+raisonnement était faux : ce champ n'a jamais été nécessaire — il est en
+lecture seule et appris par le lien. L'expérience tranche, toutes choses
+égales par ailleurs : cluster commun → le lien monte mais **aucun message ne
+traverse** ; un cluster par site → **message reçu**. Adopté (D-026) :
+`federation.dmr_cluster_name` est désormais le **préfixe**, chaque site porte
+`<préfixe>-<id>`.
+
+Reste caduc, pour une autre raison : le prompt `prompt-claude-code-modele-dmr.md`,
+qui prescrivait de configurer `remoteClusterName`.
 
 ## Banc de test
 
@@ -197,12 +228,14 @@ Sélection de composants déployée : `etcd`, `apisix`, `postgres`, `solace`.
 - [x] Instantanés `avant-premier-deploiement` pris sur les deux VM
 - [x] Test intermittent `certs.test.js` : cause établie et corrigée (19/09 nuit)
 - [x] Ponts DMR et certificat client de cluster dans `solace-dmr.sh` (19/09 nuit)
+- [x] AKI et marque de format d'émission des certificats (D-025, 20/09)
+- [x] Lien DMR actif **sur banc**, message A → B reçu **sur banc** (D-026, 20/09)
+- [x] Audit des messages d'échec d'`install.sh` : trois corrigés (20/09)
 
 ### À faire, par ordre de dépendance
 
-- [ ] Cause de la « Certificate Error » du pont DMR
-- [ ] Lien DMR actif entre A et B
-- [ ] Message publié sur A reçu sur B
+- [ ] Lien DMR actif entre A et B **sur les VM**, depuis une archive de l'interface
+- [ ] Message publié sur A reçu sur B **sur les VM**
 - [ ] NTP activé sur A et B (clause D-017 — jamais fait sur les clones)
 - [ ] Installation complète **sans intervention manuelle**, machines restaurées,
       archives régénérées par l'interface
@@ -212,7 +245,7 @@ Sélection de composants déployée : `etcd`, `apisix`, `postgres`, `solace`.
 - [ ] Mesures `docker stats` remplaçant les estimations `memoire_min_mo`
 - [ ] Troisième machine (site C, index 3), à arbitrer selon la mémoire mesurée
 
-## Séquence de reprise, une fois le lien résolu
+## Séquence de reprise
 
 L'ordre est contraignant : D-015 exige que le générateur soit figé **avant** le
 premier déploiement chronométré, sinon la courbe de l'affirmation 2 mélange le
@@ -258,6 +291,12 @@ d'`install.sh`. Le point « hébergement des trois VM » est fermé par D-021.
 Le test `certs.test.js` non déterministe (« SAN : réémission quand l'IP
 change ») est **élucidé** : voir la séance du 19/09 (nuit).
 
+Ouverts depuis le 20/09 (D-026) : la file durable du canal de données DMR, qui
+n'existe sur aucun broker et impose le mode direct seul entre sites ; et la
+règle de correspondance de certificat, aujourd'hui permissive sur le nom
+commun — la restreindre au nom de nœud attendu a été refusé par le broker dans
+nos essais.
+
 ## Historique condensé
 
 | Date | Ce qui a été fait |
@@ -269,6 +308,7 @@ change ») est **élucidé** : voir la séance du 19/09 (nuit).
 | 18/09 (soir) | Installation complète des deux sites, mais **débloquée à la main**. Quatre correctifs (D-024). Lien DMR non actif → diagnostic ouvert |
 | 19/09 (soir) | CRLF, clause Images, tolérance mémoire, mock docker commités. Pont DMR identifié par le broker comme cause |
 | 19/09 (nuit) | Test intermittent élucidé (sérial DER). Ponts DMR et certificat client de cluster dans le script. Édition Standard hors de cause. Blocage réduit à une « Certificate Error » sur le pont |
+| 20/09 (nuit) | AKI et marque de format des certificats (D-025). Lien DMR débloqué : règle de correspondance, mode direct, un cluster par site (D-026). **Message A → B reçu sur banc.** Trois messages d'échec d'`install.sh` corrigés |
 
 ## Phases restantes
 

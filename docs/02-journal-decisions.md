@@ -50,6 +50,7 @@ Format : date, décision, raison, alternatives écartées, statut.
 **Raison.** Les VM locales sont arrêtées régulièrement. Sans persistance, chaque arrêt désynchronise durablement le site.
 **Statut.** Retenu.
 
+**Amendée (D-026, 20/09).** À l'intérieur d'un site, rien ne change. **Entre sites**, le trafic est en mode direct seul : le mode garanti empêche le lien DMR de monter (file durable `#cluster:…` inexistante). Contrainte du montage, pas choix d'architecture.
 ---
 
 ## D-005 — Index de site figé, plage Docker dérivée
@@ -110,6 +111,7 @@ broker refuse cette modification sur un lien actif). Vérifié contre un vrai
 broker : `solace-dmr.test.js` sous `PEAAS_SOLACE_IT=1` rejoue avec un pair
 d'IP modifiée et relit la liste.
 
+**Amendée (D-026, 20/09).** Le nom du cluster DMR n'est plus commun à la fédération : `federation.dmr_cluster_name` en est le **préfixe**, et chaque site a son propre cluster `<préfixe>-<id>`. Avec un cluster commun, le lien monte mais aucun message ne traverse (vérifié sur deux brokers réels). Le script pose en outre un pont DMR par pair, un certificat client de cluster et une règle de correspondance de certificat.
 ---
 
 ## D-009 — Le versionnement remplace l'archivage de conteneurs
@@ -163,6 +165,7 @@ et sort en 0.
 **Raison.** Le DNS seul pousse à ajouter des entrées `hosts` locales ; l'IP seule interdit l'aiguillage par SNI envisagé en 8.5.
 **Statut.** Retenu.
 
+**Amendée (D-025, 20/09).** Une sixième condition de réémission : le **format d'émission** a changé (marque `sites/<id>/format` dans le magasin). Sans elle, une correction de format ne s'applique jamais aux certificats déjà émis.
 ---
 
 ## D-014 — Clé de l'autorité non chiffrée au repos pour le PoC
@@ -261,6 +264,7 @@ sans rien changer au script. L'interrogation se fait par
 **Écarté.** Recharger `server.js` à chaud à chaque requête (invaliderait le principe d'un process qui tourne, coût et complexité disproportionnés pour ce socle). Se contenter de documenter la nécessité d'un redémarrage sans le vérifier (déjà tenté en pratique dans cette session : jamais oublié une fois, mais rien ne garantissait que ça continue).
 **Statut.** Retenu, implémenté (`server.js`, tests dédiés dans `server.test.js`).
 
+**Revérifiée le 20/09.** Question posée à nouveau — « le hash inscrit décrit-il le code réellement exécuté ? ». Réponse : oui, ce contrôle la couvre, et l'observation qui l'avait fait rouvrir s'explique autrement. Deux archives produites le 19/09 à 21:13 et 21:15 portaient le même `generator=29e2dfe93bde` parce que le conteneur `webapp` avait démarré à 21:12:35, après le commit `29e2dfe` (20:59 UTC) : le code exécuté était bien celui annoncé. Sans redémarrage, D-021 aurait refusé la génération en 409. Aucun amendement, ni ici ni sur D-015.
 ---
 
 ## D-022 — Le générateur peut écrire dans `PEaaSrepo`, mais seulement pour ajouter un site
@@ -307,6 +311,39 @@ La correction porte aux **deux** endroits, et ce n'est pas une ceinture-et-brete
 **Corrigé dans le même lot, même incident.** La boucle d'attente SEMP affichait chaque tentative (`curl -sS`), produisant des dizaines de `curl: (56) Recv failure` pendant le démarrage normal du broker avant de conclure « ok SEMP joignable » — un état normal présenté comme une panne, ce que D-023 proscrit. Les tentatives sont désormais silencieuses ; la dernière erreur n'est remontée qu'à l'expiration du délai.
 
 **Conséquence sur la preuve, à ne pas perdre de vue.** Les installations du 18/09 n'ont abouti que parce que les certificats ont été corrigés **à la main sur les VM** (`sed -i 's/\r$//'`). Elles ne valent donc pas comme preuve de l'affirmation 1 et ne closent pas le critère de sortie de la phase 1 : voir l'état d'avancement pour la reprise exigée.
+
+---
+
+## D-025 — Le format d'émission des certificats est versionné, et l'AKI en fait partie
+**Date.** 20/09/2026
+**Décision.** Les certificats de site portent l'extension `authorityKeyIdentifier`, dont la valeur est le `subjectKeyIdentifier` de la CA, lu dans son certificat. Indépendamment, le magasin inscrit à côté de chaque certificat une **marque de version du format d'émission** (`sites/<id>/format`) : une marque absente ou différente de la version courante réémet le certificat, sans `--force`. **Amende D-013**, qui n'énumérait que certificat absent, proche de l'expiration, signé par une autre CA, SAN obsolète, ou `--force`.
+
+**Raison.** Deux archives produites par l'interface le 19/09, la seconde après réémission forcée, portaient toutes deux un certificat **sans AKI**. La RFC 5280 § 4.2.1.1 rend cette extension obligatoire sur tout certificat non auto-signé émis par une CA conforme ; `openssl verify -x509_strict` refusait la chaîne (« Missing Authority Key Identifier »), et rien ne garantissait qu'un validateur plus strict — celui du broker — se comporte comme `openssl verify` ordinaire. Sur la marque de format : sans elle, toute correction future portant sur les extensions, le numéro de série ou l'encodage laisse en place les certificats déjà émis et paraît sans effet alors qu'elle n'a jamais été appliquée. C'est exactement ce qui s'est produit le 19/09 — une piste « AKI » a été essayée sur un certificat fabriqué à la main pendant que le générateur continuait d'en émettre sans.
+
+**Écarté.** *Réémettre systématiquement à chaque génération* : invaliderait un certificat déjà déployé (D-006, D-013). *Comparer les extensions du certificat stocké à celles attendues* : coûteux, et incapable de détecter un changement d'encodage ou de sérial ; une marque de version dit la même chose sans interprétation.
+
+**Statut.** Retenu, implémenté et testé (`certs.js`, `FORMAT_EMISSION = 2`). Trois tests dédiés, échouaient avant. Vérifié sur un vrai magasin : les deux certificats du banc, émis sans marque, ont été réémis avec AKI et passent `openssl verify -x509_strict -purpose sslclient`. **Conséquence à connaître** : tous les certificats déjà émis seront réémis à la prochaine génération — c'est voulu, ils n'ont pas d'AKI.
+
+**Défaut introduit puis corrigé dans le même lot**, à conserver comme exemple : le premier correctif AKI lisait le SKI de la CA dans un champ qui n'a pas la même forme selon que la CA vient d'être créée ou d'être relue sur disque. Le test ne couvrait que la relecture ; la première génération d'un magasin neuf plantait. Corrigé avec le test du chemin manquant.
+
+---
+
+## D-026 — Trois conditions font monter un lien DMR externe, et un cluster par site
+**Date.** 20/09/2026
+**Décision.** Un lien DMR externe entre deux sites exige, au-delà de ce qui était déjà configuré : (1) un **pont DMR** par pair sur le Message VPN, portant `remoteMsgVpnName` dès sa création et posé avant l'activation du lien ; (2) un **certificat client de cluster** sur chaque site ; (3) une **règle de correspondance de certificat** sur chaque cluster. De plus, le cluster est créé en **mode direct seul** (`directOnlyEnabled`), et **chaque site a son propre cluster DMR**, `<préfixe de fédération>-<id du site>`. **Amende D-008** (le nom de cluster n'est plus commun à la fédération, mais préfixé par elle) et **D-004** côté inter-sites.
+
+**Raison.** Chaque condition a été isolée sur deux brokers réels (soltr 10.26), une seule variable changée à la fois.
+- *Pont* : le broker le nomme lui-même — « external link site-b has no bridge on vpn default », puis « has bridge with no remote message-vpn ».
+- *Certificat client de cluster* : sans lui, l'initiateur n'ouvre **aucune** connexion, sans erreur ni trace. Zéro tentative avant le `PATCH authenticationClientCertContent`, les premières dans la seconde qui suit. La doc Solace le dit : ce certificat « is presented to the remote node by the node initiating the connection ».
+- *Règle de correspondance* : sans elle, le pair refuse la session — « Login Response: Certificate Error » côté initiateur, « Unauthorized: Certificate Error » côté receveur. La doc l'exige : « you must configure at least one client certificate matching rule condition when using client certificate authentication for cluster links ».
+- *Mode direct seul* : en mode garanti — le défaut — le canal de données se lie à une file durable `#cluster:…` qui n'existe sur aucun des deux brokers : « Bind to Durable Queue #cluster: … failed, reason: Unknown Queue », lien `Channel(s) Down`. Comparaison directe : garanti → down, direct → up, tout le reste égal.
+- *Un cluster par site* : avec un cluster commun, le lien monte **et aucun message ne traverse**. Comparaison directe, deux fois : cluster commun → rien reçu ; un cluster par site → message publié sur A reçu par un abonné sur B. C'est cohérent avec la définition d'un lien `span: external`, qui relie deux nœuds de clusters **différents**.
+
+**Écarté.** *Maintenir le cluster unique* (décision du 19/09 : « le modèle de cluster n'est pas en cause ») : cette conclusion reposait sur le refus de `remoteClusterName` par le broker. Ce champ n'a jamais été nécessaire — il est en lecture seule et appris par le lien ; le raisonnement était faux, la preuve expérimentale le montre. *Authentification par mot de passe sur le lien* : le lien monte aussi, mais renoncer au certificat client alors qu'une CA de fédération existe affaiblirait le montage sans raison. *Restreindre la règle de correspondance au nom de nœud attendu* (condition sur le nom commun liée à un attribut de lien) : l'attribut de lien a été refusé par le broker dans nos essais ; reste ouvert. En l'état, la frontière de confiance est la CA de fédération, seule habilitée à signer un certificat qui arrive jusque-là.
+
+**Conséquence assumée.** Pas de messagerie **garantie entre sites** : le trafic inter-sites est en mode direct. Dans un site, les files restent persistantes (D-004 inchangée à l'intérieur d'un site). C'est une contrainte du montage, pas un choix d'architecture : elle tombe si la file durable du canal de données est un jour créée correctement — point ouvert.
+
+**Statut.** Retenu, implémenté et testé. `solace-dmr.sh` (pont, certificat client, règle, mode direct, garde sur un cluster préexistant en mode garanti) et `multisite.js` (cluster par site, champ `msg_vpn`). Tests unitaires en `--dry-run`, plus un test contre un stub SEMP local ; tous échouaient avant. **Vérifié de bout en bout sur banc** : script seul, rejoué sur deux brokers vierges → lien `up:true` des deux côtés, ponts `up:true`, et **message publié sur A reçu par un abonné sur B**. Reste à refaire sur les deux VM, depuis une archive produite par l'interface.
 
 ---
 
