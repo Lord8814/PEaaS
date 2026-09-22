@@ -33,23 +33,31 @@ invalide doit se voir au démarrage, pas au premier paquet produit.
 | Type | Règle | Contraintes acceptées |
 |---|---|---|
 | `email` | Un `@`, une partie locale non vide, un domaine avec au moins un point. Syntaxe seule : aucune résolution DNS, aucune vérification de délivrabilité | — |
-| `motdepasse` | Longueur minimale, pas d'espace en bordure | `longueur_min` (défaut 8), `sans_espace` |
-| `identifiant` | Non vide, sans espace | `sans_espace` (implicite) |
+| `motdepasse` | Liste blanche `[A-Za-z0-9]`, 24 caractères au moins, pour tous les composants (D-028 amendé, 22/09) | `longueur_min` (relève le plancher de 24, ne l'abaisse jamais), `pas_nombre` |
+| `identifiant` | Non vide, sans espace | — |
 | `texte` | Non vide | — |
 
 Pour **tous** les types : les caractères de contrôle et les sauts de ligne sont
 refusés — une valeur multiligne casserait le `.env` de l'archive, comme les
 CRLF dans les PEM l'avaient fait pour SEMP (D-024).
 
-`sans_espace: true` se déclare quand le **consommateur** de la valeur ne tolère
-pas l'espace : la clé APISIX est substituée dans un scalaire YAML non quoté,
-et `solace-dmr.sh` relit le mot de passe Solace avec un `tr -d '[:space:]'` qui
-le mutilerait.
+Un mot de passe traverse le rendu du `.env`, l'interpolation de Compose,
+`env_lire` (`lib/env.sh`), `curl -u` (`lib/semp.sh`) et son composant : seul
+ce que **tous** transportent intact est admis, d'où une liste blanche et non
+une liste noire. Le refus nomme l'identifiant et cite la liste blanche, jamais
+le caractère fautif (D-028 : la valeur n'est jamais reproduite). La longueur
+rachète l'alphabet réduit (24 × log2 62 ≈ 143 bits). `sans_espace` n'existe
+plus : un catalogue qui le porte encore est refusé au chargement.
+Justification et limites : amendement du 22/09 à D-028.
 
-La règle d'un produit se relève **dans le produit**, pas au jugé : `longueur_min: 6`
-pour pgAdmin vient de `config.py` (`PASSWORD_LENGTH_MIN = 6`) de l'image, et la
-règle `email` reproduit ce que son `entrypoint.sh` contrôle réellement. Le
-défaut de 8 caractères, lui, est une règle du socle, assumée comme telle.
+`pas_nombre: true` (clé APISIX) reste nécessaire : une valeur alphanumérique
+peut avoir la forme d'un nombre que LuaJIT convertirait (24 chiffres,
+`0x…`). `caracteres_interdits` reste disponible pour les autres types.
+
+La règle `email` reproduit ce que l'`entrypoint.sh` de pgAdmin contrôle
+réellement. Le plancher de 24 caractères est une règle du socle, plus stricte
+que les images (pgAdmin déclare 6, postgres:16 et Grafana rien), assumée
+comme telle.
 
 ## Structure d'une entrée cas d'usage
 

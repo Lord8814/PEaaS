@@ -442,3 +442,26 @@ génération — est corrigée par D-028.
 première passe mesurable sera celle qui part d'un instantané
 `avant-premier-deploiement`, sans intervention manuelle, avec un générateur
 portant D-028 et un `install.sh` portant D-029.
+
+### 21-22/09 — caractères du mot de passe admin Solace (tâche 2a) : close sans conclusion par caractère
+
+- **Témoin `admin1234`, seul broker, 22/09** : chaîne complète tenue. Relu à
+  l'identique après `docker compose config` et après `env_lire`, broker démarré
+  en 58 s, SEMP 200 avec le bon mot de passe, 401 avec un autre.
+- **21/09, brokers en parallèle** : arrêts en code 2 pour `"`, `\`, `$`, `'`,
+  `#` (seuls ou mêlés) ; `adm aaaa` (espace interne) démarré, SEMP 200.
+  **Non isolés** : jusqu'à six brokers de 4096 Mo sur une VM de 8 Go, un seul
+  survivant par lot, toujours celui au mot de passe « simple ».
+- **`!` `?` `;` `{` `}` `%`** : aucun résultat (VM plantée pendant la mesure).
+- **`"` seul, un broker, `system_scaling_maxconnectioncount=100`, 22/09** :
+  aucun résultat. Broker lancé à 07:05:48 UTC, journaux arrêtés à 07:06:11 sur
+  des lignes normales, VM plantée vers 07:50 UTC. `$` seul jamais lancé.
+- **Trois plantages de la VM de travail** (21/09 ≈ 18:10, 22/09 avant 08:00,
+  22/09 ≈ 09:50, heure locale), chaque fois pendant un broker Solace ; `last -x`
+  les marque `crash`. La VM est elle-même une VM VirtualBox ; diagnostic côté
+  hôte en cours.
+
+Mesure close sans nouvelle relance : la liste blanche retenue
+(`[A-Za-z0-9]`, 24 caractères au moins) s'appuie sur le témoin et sur le
+gabarit `dbBaseline.tmpl:479`, pas sur ces arrêts (amendement du 22/09 à
+D-028). Variante `password-filepath` : non vérifiée sur conteneur.

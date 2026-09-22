@@ -311,6 +311,8 @@ Cette restriction a une conséquence importante : **il n'y a pas besoin de rése
 
 On sécurise donc au niveau applicatif — en TLS mutuel, où chaque extrémité présente et vérifie un certificat — plutôt qu'au niveau réseau. C'est plus simple à monter, plus fin à contrôler, et ça évite de chiffrer deux fois.
 
+**Limite assumée pour le flux 3.** La consultation de base distante est en TLS côté serveur seulement : le serveur PostgreSQL est authentifié par la CA de la fédération et le flux est chiffré, mais le client (pgAdmin) n'est authentifié que par mot de passe, pas par certificat. Les flux 1 et 2 restent en TLS mutuel. Raison et extension prévue (`clientcert=verify-ca`) : amendement du 21/09 à D-002.
+
 ### 8.2 Couche 1 — connectivité
 
 **Objectif** : que chaque site puisse ouvrir une connexion vers les autres sur les ports concernés.

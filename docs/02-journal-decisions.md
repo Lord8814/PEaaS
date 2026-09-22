@@ -36,6 +36,18 @@ Format : date, décision, raison, alternatives écartées, statut.
 **Écarté.** Maillage WireGuard.
 **Statut.** Retenu.
 
+**Amendé (21/09).** Pour le flux 3 (consultation de base distante), le PoC
+retient TLS côté serveur avec authentification par mot de passe, et non le
+TLS mutuel. Raison : c'est une consultation ponctuelle par un opérateur, pas
+un flux machine à machine. Le mTLS imposerait une correspondance entre le
+CN du certificat de site et l'utilisateur de la base (`pg_ident.conf`) et la
+distribution de la clé du site à pgAdmin, pour un gain limité à ce stade.
+Garanties conservées : confidentialité du flux et authentification du
+serveur par la CA de la fédération. Limite assumée : le client n'est
+authentifié que par mot de passe. Les flux 1 (DMR) et 2 (API) restent en
+TLS mutuel. Extension prévue : `clientcert=verify-ca` avec certificat de
+site côté pgAdmin.
+
 ---
 
 ## D-003 — Pas de réplication des données entre sites
@@ -405,6 +417,40 @@ témoin de bon fonctionnement du contrôle à l'appui.
 la saisie : la requête ne part plus. Le garde-fou serveur correspondant (un
 corps sans champ `identifiants` du tout — le bug de sélecteur DOM de D-023)
 reste couvert côté serveur.
+
+**Amendé (22/09) — liste blanche du type `motdepasse`.** Le type `motdepasse`
+n'admet que `[A-Za-z0-9]`, 24 caractères au moins, pour **tous** les
+composants. Un produit peut relever ce plancher (`longueur_min`), jamais
+l'abaisser : le `longueur_min: 6` de pgAdmin est retiré. `sans_espace` est
+supprimé, la liste blanche excluant tout espace ; un catalogue qui le porte
+encore est refusé au chargement. `pas_nombre` reste (clé APISIX : 24 chiffres
+ou `0x…` restent des nombres pour LuaJIT). Le refus nomme l'identifiant et
+cite la liste blanche, pas le caractère fautif, qui appartient à la valeur.
+- *Pourquoi une liste blanche.* Un mot de passe a plusieurs consommateurs :
+  rendu du `.env`, interpolation Compose, `env_lire` (`lib/env.sh`),
+  `curl -u` (`lib/semp.sh`), le composant. La contrainte valide est leur
+  intersection ; une liste noire suppose de connaître tous les caractères qui
+  cassent chacun d'eux.
+- *Ce qui est mesuré.* Un témoin alphanumérique (`admin1234`) a traversé toute
+  la chaîne sur un vrai broker (22/09) : relu à l'identique après
+  `docker compose config` et après `env_lire`, broker démarré, SEMP 200 avec
+  le bon mot de passe, 401 avec un autre.
+- *Ce qui fonde l'exclusion du reste.* Le gabarit confd de l'image Solace
+  injecte le mot de passe admin entre guillemets dans un script CLI
+  (`dbBaseline.tmpl:479`, `create username "…" password "…"`). S'y ajoutent
+  des arrêts en code 2 observés le 21/09 pour des mots de passe contenant
+  `"`, `\`, `$`, `'` ou `#` (un mot de passe à espace interne a, lui,
+  démarré, SEMP 200 — mais l'espace n'a été éprouvé que par le broker, pas par
+  la chaîne entière). Ces arrêts sont **non isolés** : plusieurs
+  brokers à 4096 Mo tournaient à la fois sur une machine de 8 Go, et la VM
+  qui les exécutait a planté trois fois pendant les mesures. Ils ne prouvent pas, à eux
+  seuls, qu'un caractère donné est refusé.
+- *Écarté.* Liste noire (exige de mesurer chaque caractère sur chaque
+  consommateur, mesure que la machine n'a pas permise). Variante fichier du
+  mot de passe (`password-filepath`, présente dans le même gabarit) : non
+  vérifiée sur conteneur, et ne couvrirait que Solace.
+- *Coût.* L'alphabet réduit (62 symboles) est racheté par la longueur :
+  24 × log2 62 ≈ 143 bits.
 
 ---
 
