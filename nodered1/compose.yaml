@@ -28,8 +28,6 @@ services:
     volumes:
       - /mnt/nodered1/data:/data
       - /mnt/nodered1/config/settings.js:/data/settings.js:ro
-      - /mnt/nodered1/config/flows.json:/data/flows.json
-      - /mnt/nodered1/config/package.json:/data/package.json
     networks:
       - peaas
 
