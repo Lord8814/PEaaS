@@ -32,7 +32,7 @@ invalide doit se voir au démarrage, pas au premier paquet produit.
 
 | Type | Règle | Contraintes acceptées |
 |---|---|---|
-| `email` | Un `@`, une partie locale non vide, un domaine avec au moins un point. Syntaxe seule : aucune résolution DNS, aucune vérification de délivrabilité | — |
+| `email` | Un `@`, une partie locale non vide, un domaine avec au moins un point, pas de domaine à usage spécial (`arpa`, `invalid`, `local`, `localhost`, `onion`, `test`, ou suffixe de l'un d'eux : liste de `email_validator` 2.3.0 dans l'image pgAdmin, tâche 5.1 du 22/09). Syntaxe seule : aucune résolution DNS, aucune vérification de délivrabilité | — |
 | `motdepasse` | Liste blanche `[A-Za-z0-9]`, 24 caractères au moins, pour tous les composants (D-028 amendé, 22/09) | `longueur_min` (relève le plancher de 24, ne l'abaisse jamais), `pas_nombre` |
 | `identifiant` | Non vide, sans espace | — |
 | `texte` | Non vide | — |
