@@ -359,6 +359,11 @@ La correction porte aux **deux** endroits, et ce n'est pas une ceinture-et-brete
 
 ---
 
+## D-027 — non attribué
+Constaté le 22/09 : aucune décision ne porte ce numéro. Recherche menée dans `/mnt/docs/` (fichiers suivis et non suivis) et dans l'historique complet des trois dépôts (`/mnt`, `/mnt/web`, `/mnt/PEaaSrepo` : `git log --all`, par message et par contenu `-S`, aucun stash) : aucune occurrence. Numéro laissé vide, pas réattribué.
+
+---
+
 ## D-028 — Identifiants validés par type à la génération
 **Date.** 20/09/2026
 **Décision.** Chaque identifiant du catalogue porte un type (`email`,

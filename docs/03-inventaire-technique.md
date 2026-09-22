@@ -249,6 +249,62 @@ certificat de site attendu (automatisé, `solace-dmr.test.js`,
 le lien passe réellement *actif* en mTLS entre deux brokers réels, ce qui
 exige un second broker faisant confiance à la même CA de fédération.
 
+### Flux 3 — PostgreSQL en TLS côté serveur (tâches 3b et 5.2, 22/09)
+
+Multisite seulement (bloc `compose_multisite` du catalogue ; en mono-site,
+5432 est local et sans TLS). D-002 amendé le 21/09 : serveur authentifié par
+la CA de la fédération, client par mot de passe.
+
+- **PostgreSQL** : `ssl=on`, certificat et CA du site montés en lecture seule
+  depuis `postgres/tls/` (déposé par `install.sh`, étape 4). La clé doit
+  appartenir à l'utilisateur du serveur et être en 0600 : une enveloppe
+  d'entrypoint, exécutée en root par l'image, la recopie dans
+  `/run/peaas-tls/` avec `install -o postgres -g postgres -m 0600` (aucun
+  uid écrit ; `postgres:16` : uid 999), puis `exec docker-entrypoint.sh`.
+- **`pg_hba.conf`** (gabarit du catalogue) : socket locale en `trust` (comme
+  l'image, pour son initialisation et `postgres.sh`) ; `hostnossl … reject`
+  sur `0.0.0.0/0` et `::/0`, **avant** `hostssl … scram-sha-256` : aucune
+  ligne `host`, aucune règle restreinte à une adresse. Adresse source vue
+  par PostgreSQL (`log_connections`, 22/09, bench à un hôte, proxy
+  utilisateur de Docker actif) : réseau du site par le nom `postgres` →
+  adresse du conteneur client ; port publié depuis un autre réseau Docker,
+  depuis `127.0.0.1` de l'hôte, ou en boucle par `host_address` depuis
+  pgAdmin → **passerelle du réseau du site** ; depuis l'hôte par
+  `host_address` → cette adresse. Exempter le sous-réseau du site du TLS
+  ouvrirait donc le port publié en clair (témoin
+  `BANC_PG_VARIANTE=exemption-site` : le bench échoue). Client d'une autre
+  machine : **non relevé** (aucune seconde machine joignable depuis le
+  bench) — à relever sur les VM de site.
+- **pgAdmin** (`dpage/pgadmin4`, 9.17, uid 5050) : la CA seule dans
+  `pgadmin/tls/`, montée en lecture seule. `scripts/setup/pgadmin.sh`
+  construit sur le site, depuis `site-profile.yaml`, une entrée par site
+  (site local compris) : `Host` = `host_address` (SAN du certificat — le nom
+  de service `postgres` n'y figure pas), `sslmode=verify-full`,
+  `sslrootcert` = CA, `Username` = `POSTGRES_USER`, aucun mot de passe.
+  Chargement par `setup.py load-servers --replace` à chaque installation,
+  vérifié par relecture (`load-servers` sort en 0 même en échec).
+
+**Vérifié sur conteneurs réels (22/09, `banc/postgres.banc.js`,
+`banc/pgadmin.banc.js`)** : `ssl=on`, clé `postgres 600` ; `verify-full`
+accepté et chiffré ; `sslmode=disable` rejeté sur chaque voie (port
+publié, boucle, réseau du site par le nom `postgres` :
+`pg_hba.conf rejects connection … no encryption`), TLS sans vérification de
+nom accepté par ce nom ; certificat hors CA
+refusé côté client ; `docker compose stop` en 0,8 s, code 0 ; redémarrage et
+recréation sans intervention ; depuis pgAdmin (uid 5050), `verify-full`
+réussi par `host_address`, refusé par le nom `postgres`. Témoins : sans TLS,
+`verify-full` impossible et `disable` accepté ; enveloppe sans `exec`, arrêt
+tué au délai (137) ; sous-réseau du site exempté du TLS, port publié
+accepté en clair.
+
+**Limites.** Voir `04-catalogue.md` (limites de `pgadmin.sh`) : rôle local
+recopié dans les entrées distantes, un serveur par pair même sans
+PostgreSQL, client du site en clair (Node-RED `ssl: false`) refusé.
+
+**Vérification restante (au déploiement, par l'auteur).** Affichage des
+serveurs de `servers.json` dans l'interface pgAdmin (utilisateur desktop) :
+vérifié seulement par `dump-servers`, pas à l'écran.
+
 ## Vérifications réseau
 
 | Test | Depuis | Vers | Résultat | Date |

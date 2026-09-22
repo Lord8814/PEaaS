@@ -15,6 +15,7 @@ dans le même dossier. Ce fichier en est la spécification.
 | `libelle` | Nom affiché dans l'interface | oui |
 | `description` | Une phrase, pour un lecteur non technique | oui |
 | `compose` | Bloc de service compose (clé de service au ras de la marge, indentation 0). Le générateur le réindente sous `services:` et ajoute le réseau `peaas` | oui |
+| `compose_multisite` | Bloc de service propre au multisite, même service que `compose` (sinon catalogue refusé au chargement). Pour ce qui n'existe qu'en multisite : `certs/` du site (TLS de PostgreSQL, CA dans pgAdmin — tâches 3b et 5.2 du 22/09). Absent : `compose` sert dans les deux modes | non |
 | `variables` | Variables `${NOM}` et leur `defaut` (jamais pour un identifiant) ; substituées à la lecture du catalogue | oui |
 | `ports` | Ports internes et exposés, avec leur liaison (`toutes` / `local`). `liaison_monosite: local` (sur un port `toutes`) : le générateur lie ce port à `127.0.0.1` en mono-site, où il n'y a aucun flux inter-sites. Concordance avec le compose vérifiée par `ports.test.js` | oui |
 | `identifiants` | Liste `{ variable, libelle, type, ... }` à saisir à la génération ; aucune valeur par défaut. Le `type` est **obligatoire** dès qu'un identifiant est déclaré (D-028) — voir ci-dessous | non |
@@ -114,14 +115,35 @@ temps ne seront pas comparables (D-015).
 | etcd | oui | oui | — (stockage produit) | — |
 | Solace | oui | oui | — | `solace-dmr.sh` (fédération DMR) |
 | Node-RED | oui | oui | `settings.js` neutre, `flows.json` = `[]`, `package.json` sans dépendance | flux monté au 1er démarrage |
-| PostgreSQL | oui | oui | — | `postgres.sh` — schéma `peaas` + table marqueur (idempotent) |
-| pgAdmin | oui | oui | — | — |
+| PostgreSQL | oui | oui | `pg_hba.conf` (multisite : réseau en `hostssl` seulement, aucune exemption par adresse — tâche 3b) | `postgres.sh` — schéma `peaas` + table marqueur (idempotent) |
+| pgAdmin | oui | oui | — | `pgadmin.sh` (multisite) — un serveur par site, `verify-full`, `load-servers --replace` (tâche 5.2) |
 | Prometheus | oui | oui | `prometheus.yml` | — |
 | Grafana | oui | oui | `datasources.yaml` (source Prometheus, sans identifiant) | provisionnement au boot |
 
 > Rejeu orchestré par `install.sh` (étape 7) depuis `.peaas/setup-scripts`
 > (`<composant>\t<script>`), émis par le générateur pour chaque produit retenu
 > ayant un `script_setup`. Non bloquant, rejouable.
+
+**Limites de `pgadmin.sh` (tâche 5.2, 22/09).**
+- *`Username` des entrées distantes.* `site-profile.yaml` ne porte aucun
+  identifiant PostgreSQL d'un autre site (D-011 : saisis site par site), et
+  l'archive n'en contient aucun. Le script recopie donc le rôle **local**
+  (`POSTGRES_USER` du `.env` s'il existe, sinon `peaas_admin`) dans chaque
+  entrée, distante comprise. Juste tant que tous les sites sont générés
+  depuis un catalogue qui fixe le même rôle (`POSTGRES_USER: peaas_admin`
+  dans le bloc compose) ; faux dès qu'un site en change. pgAdmin demande
+  le mot de passe distant à la connexion (D-002 amendé), jamais stocké.
+- *Liste des serveurs.* Un serveur par pair de la topologie, que ce pair ait
+  retenu PostgreSQL ou non.
+- *Voie locale en clair refusée.* Même au sein du site, `pg_hba.conf`
+  refuse toute connexion réseau non TLS : par le port publié ou en boucle
+  par `host_address`, PostgreSQL voit la passerelle Docker du réseau du
+  site (relevé par `log_connections`, 22/09), impossible à distinguer d'un
+  conteneur du site par l'adresse. Un client du site (Node-RED avec
+  `ssl: false`, comme le flux du run local de `/mnt`) est donc refusé ; il
+  doit se connecter en TLS (le nom `postgres` n'étant pas dans le SAN, sans
+  vérification de nom). Les flux livrés par le catalogue (`flows.json` =
+  `[]`) n'en contiennent aucun.
 
 > `nodered2` (démo round-robin) n'est plus au catalogue : instance unique dans le
 > socle neutre. Les flux Node-RED de démonstration sont un cas d'usage, hors socle.
