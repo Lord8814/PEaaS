@@ -204,11 +204,25 @@ Aucune suppression de `*/data/` : le générateur cesse simplement de les lire.
 |---|---|---|---|---|
 | Liens entre brokers (DMR, TLS) | 55443 (SMF/TLS) | 55443 | Toutes interfaces | Index bas → index haut |
 | Messagerie SMF en clair | 55555 | `127.0.0.1` | Local (aucun consommateur inter-sites) | Local |
-| API entre passerelles | | | Toutes interfaces | Les deux |
+| Messagerie MQTT, MQTT/WebSocket, AMQP, REST | 1883, 8000, 5672, 9000 | `127.0.0.1` | Local (aucun consommateur inter-sites, 22/09) | Local |
+| API entre passerelles | 9080 | 9080 | Toutes interfaces | Les deux |
 | Consultation base distante | 5432 | 5432 | Toutes interfaces | Les deux |
 | SEMP (gestion Solace) | 8080 | 8080 | `127.0.0.1` seulement (D-018) | Local |
 | Admin API APISIX | 9180 | 9180 | `127.0.0.1` seulement (D-018) | Local |
 | etcd | 2379 | — | Non publié du tout | Local |
+| Interfaces locales : Node-RED, pgAdmin, Prometheus, Grafana | 1880, 80, 9090, 3000 | 1880, 5433, 9090, 3000 | `127.0.0.1` seulement (22/09) | Local |
+
+> **Référence et test (tâche 3, 22/09).** Ce tableau suit les trois flux de la
+> section 8.1 de la documentation. `ports.test.js` vérifie sur le compose généré
+> avec tous les produits que les ports publiés hors `127.0.0.1` sont
+> **exactement** {55443, 9080, 5432}, puis, en second contrôle, que le compose
+> de chaque produit concorde avec sa déclaration `ports:` au catalogue. Avant le
+> 22/09, MQTT, AMQP, REST et les quatre interfaces web étaient publiés sur
+> toutes les interfaces, alors que le catalogue en déclarait certains `local`.
+>
+> **Mono-site.** Sans flux inter-sites, 55443 et 5432 y sont liés à
+> `127.0.0.1` (`liaison_monosite: local` au catalogue) : seul 9080, point
+> d'entrée des appels applicatifs, reste publié hors `127.0.0.1`.
 
 > Les ports sont portés par le catalogue. Passage sur 443 via passe-plat :
 > ouvert, conditionné à la vérification de l'aiguillage TCP d'APISIX.

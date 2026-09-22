@@ -16,7 +16,7 @@ dans le même dossier. Ce fichier en est la spécification.
 | `description` | Une phrase, pour un lecteur non technique | oui |
 | `compose` | Bloc de service compose (clé de service au ras de la marge, indentation 0). Le générateur le réindente sous `services:` et ajoute le réseau `peaas` | oui |
 | `variables` | Variables `${NOM}` et leur `defaut` (jamais pour un identifiant) ; substituées à la lecture du catalogue | oui |
-| `ports` | Ports internes et exposés, avec leur liaison (`toutes` / `local`) — descriptif | oui |
+| `ports` | Ports internes et exposés, avec leur liaison (`toutes` / `local`). `liaison_monosite: local` (sur un port `toutes`) : le générateur lie ce port à `127.0.0.1` en mono-site, où il n'y a aucun flux inter-sites. Concordance avec le compose vérifiée par `ports.test.js` | oui |
 | `identifiants` | Liste `{ variable, libelle, type, ... }` à saisir à la génération ; aucune valeur par défaut. Le `type` est **obligatoire** dès qu'un identifiant est déclaré (D-028) — voir ci-dessous | non |
 | `fichiers_config` | Gabarits à monter : `{ gabarit: <nom dans le dossier produit>, montage: <chemin dans l'archive>, ro: <bool> }` | non |
 | `depend_de` | Autres produits requis | non |

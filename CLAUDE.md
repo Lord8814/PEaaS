@@ -58,7 +58,9 @@ Aucun `depends_on` déclaré. Ordre à respecter au démarrage manuel (`ordre_de
 | `grafana/` | `grafana` | grafana/grafana:latest | Visualisation des métriques | `./data` → `/var/lib/grafana` |
 | `web/` | `webapp` | node:20-alpine | Générateur de packages | `./app` → `/app` ; `/mnt` → `/stack:ro` ; `PEaaSrepo/` → `/stack/PEaaSrepo:rw` (D-022, remonté par-dessus) |
 
-Ports : `apisix` 9080 public, 9180/9091 sur `127.0.0.1`. `solace` 55555/1883/8000/5672/9000 publics, 8080 (SEMP) sur `127.0.0.1` (D-018). `nodered1` 1880, `pgadmin` 5433, `prometheus` 9090, `grafana` 3000, `webapp` 3001 : liés à `127.0.0.1`. `etcd` et `postgres` n'exposent aucun port.
+Ports du compose **généré** (référence : les trois flux inter-sites de la section 8.1 de la documentation, tableau « Ports » de `docs/03`) : seuls `55443` (`solace`, DMR sur TLS), `9080` (`apisix`, appels entre passerelles) et `5432` (`postgres`, consultation depuis un pgAdmin distant) sont publiés sur toutes les interfaces. Tout autre port publié l'est sur `127.0.0.1` : SEMP 8080, Admin API 9180 et métriques 9091 (D-018), SMF en clair 55555 et messagerie sans consommateur inter-sites (MQTT 1883, 8000, AMQP 5672, REST 9000), `nodered1` 1880, `pgadmin` 5433, `prometheus` 9090, `grafana` 3000. `etcd` ne publie rien.
+
+Composes de run local de `/mnt` (outillage, pas une référence) : `webapp` 3001 sur `127.0.0.1` ; `postgres` et `etcd` n'y publient rien.
 
 État courant du chantier : voir `docs/` (fichiers vivants — ne pas recopier ici).
 Point d'entrée : `docs/00-vue-ensemble.md` (le projet, l'état réel des trois
