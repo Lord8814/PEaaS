@@ -604,7 +604,7 @@ La troisième est celle qui répond le plus directement à la problématique, et
 
 **Écriture des scripts de cas d'usage.** Assurée par l'équipe projet pour le PoC. La question de l'ouverture à des équipes métier reste à trancher, et elle conditionne le format des scripts.
 
-**Hébergement des trois VM.** Le montage exige une VM par site, aucune ne partageant un hôte avec une autre. Le support retenu reste à arrêter ; il est hors du périmètre du package (D-019), mais conditionne la phase 0.
+**Hébergement des trois VM.** *Tranché par D-031 (banc à deux sites).* Les deux VM de site partagent un même poste, reliées par un réseau NAT VirtualBox ; la VM du générateur est sur un autre poste. Le troisième site reste à arbitrer, une fois connue la consommation mémoire réelle d'un site. Le support d'hébergement reste hors du périmètre du package (D-019).
 
 ---
 

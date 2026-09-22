@@ -245,7 +245,7 @@ Deux VM Debian 13 sans interface, clonées depuis un modèle commun, 4 vCPU et
 | A | `peaas-site-a` | 0 | 192.168.90.11 | 10.90.0.0/24 | `ssh -p 2211 lord@127.0.0.1` |
 | B | `peaas-site-b` | 1 | 192.168.90.12 | 10.90.1.0/24 | `ssh -p 2212 lord@127.0.0.1` |
 
-Réseau NAT VirtualBox `MultiSite`, `192.168.90.0/24`, DHCP désactivé (D-021).
+Réseau NAT VirtualBox `MultiSite`, `192.168.90.0/24`, DHCP désactivé (D-031).
 Identité régénérée site par site après clonage : nom d'hôte, `machine-id`,
 clés d'hôte SSH. Instantanés `avant-premier-deploiement` pris sur les deux VM
 avant tout déploiement.
@@ -272,7 +272,7 @@ Sélection de composants déployée : `etcd`, `apisix`, `postgres`, `solace`.
 - [x] Génération refusée depuis un dépôt sale (D-020) — **observé en réel**
 - [x] Génération refusée si le process est plus vieux que le dépôt (D-021) — **observé en réel**
 - [x] Gestion de la topologie depuis l'interface, portée étroite (D-022)
-- [x] Hébergement du banc tranché (D-021), banc deux sites monté et vérifié
+- [x] Hébergement du banc tranché (D-031), banc deux sites monté et vérifié
 - [x] Premier échec d'installation réelle diagnostiqué et corrigé (D-023)
 - [x] Archives générées, diff inter-sites conforme à l'affirmation 1
 - [x] Deux sites installés, socle fonctionnel, scripts APISIX et PostgreSQL rejoués
@@ -341,7 +341,7 @@ d'échouer.
 
 Port d'interconnexion (443 / passe-plat), nature de ce que récupère le pull de
 topologie, rotation des certificats, droits des volumes, durcissement
-d'`install.sh`. Le point « hébergement des trois VM » est fermé par D-021.
+d'`install.sh`. Le point « hébergement des trois VM » est fermé par D-031.
 
 Le test `certs.test.js` non déterministe (« SAN : réémission quand l'IP
 change ») est **élucidé** : voir la séance du 19/09 (nuit).

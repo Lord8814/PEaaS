@@ -59,7 +59,7 @@ la règle du socle (régénéré par `npm install`, jamais versionné).
 > inventaire annonçait « index 1 et 2 » — c'était l'inventaire qui était faux.
 >
 > **Site C.** Retiré de `sites:` le 18/09 (le banc ne compte que deux
-> machines, D-021), son index 2 restant inscrit dans `index_history` :
+> machines, D-031), son index 2 restant inscrit dans `index_history` :
 > l'index est brûlé à jamais. Une troisième machine recevra l'index **3**,
 > jamais 2 — donc la plage Docker `10.90.3.0/24`.
 >
@@ -139,7 +139,7 @@ observée, tolérance appliquée).
 
 > Les deux VM sont clonées d'un même modèle, avec identité régénérée site par
 > site après clonage (nom d'hôte, `machine-id`, clés d'hôte SSH). Réseau NAT
-> VirtualBox `MultiSite`, DHCP désactivé (D-021). Accès depuis l'hôte :
+> VirtualBox `MultiSite`, DHCP désactivé (D-031). Accès depuis l'hôte :
 > `ssh -p 2211 lord@127.0.0.1` (A) et `-p 2212` (B) — redirections de ports
 > portées par l'hôte VirtualBox, non joignables depuis un autre environnement.
 >

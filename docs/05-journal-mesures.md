@@ -365,7 +365,7 @@ n'était vérifié qu'à l'un de ses bouts, jamais en bout en bout, donc jamais 
 
 ### 18/09 — première installation réelle : trois pannes, trois natures différentes
 
-Première confrontation du package à des machines réelles (banc A/B, D-021).
+Première confrontation du package à des machines réelles (banc A/B, D-031).
 Trois pannes distinctes en une journée, et ce qui est instructif est qu'elles
 ne relèvent pas du même registre :
 
