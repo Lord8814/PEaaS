@@ -208,6 +208,7 @@ Aucune suppression de `*/data/` : le générateur cesse simplement de les lire.
 | API entre passerelles | 9080 | 9080 | Toutes interfaces | Les deux |
 | Consultation base distante | 5432 | 5432 | Toutes interfaces | Les deux |
 | SEMP (gestion Solace) | 8080 | 8080 | `127.0.0.1` seulement (D-018) | Local |
+| PubSub+ Manager en HTTPS (cible du `301` de 8080 une fois la fédération posée) | 1943 | 1943 | `127.0.0.1` seulement (D-018 amendée, 23/09) | Local |
 | Admin API APISIX | 9180 | 9180 | `127.0.0.1` seulement (D-018) | Local |
 | etcd | 2379 | — | Non publié du tout | Local |
 | Interfaces locales : Node-RED, pgAdmin, Prometheus, Grafana | 1880, 80, 9090, 3000 | 1880, 5433, 9090, 3000 | `127.0.0.1` seulement (22/09) | Local |
@@ -385,6 +386,50 @@ lien est le SMF/TLS du catalogue (55443), jamais un champ du profil.
 Un cluster déjà créé en mode garanti bloque le rejeu (`directOnlyEnabled` est
 en lecture seule après création) : le script le détecte et indique la
 suppression à faire.
+
+**Rejeu (23/09, D-008 amendée).** L'ordre ci-dessus est celui d'un broker
+vierge. Au rejeu, chaque objet est relu d'abord : créé s'il manque, `PATCH` des
+seuls champs en écart sinon, aucune écriture contre un état conforme. Le lien
+n'est désactivé (puis réactivé dans le même passage) que pour un écart qui
+l'exige. Les certificats 1 et 3b ne sont reposés que sur cluster absent,
+fichiers modifiés (empreintes `solace/tls/.empreintes-posees`) ou
+`--reposer-certificats`. Constat local ensuite : `verifier-federation.sh`
+(étape 8 d'`install.sh`, lecture seule, monitor SEMP).
+
+### Ce que SEMP permet de relire (établi le 23/09, sans broker)
+
+Sources : exports réels des VM du 21/09 (`reference-semp-peaas-site-*/`,
+brokers soltr 10.26) ; spécification OpenAPI SEMPv2 2.11 (config et monitor,
+tableaux « Write-Only » / « Requires-Disable » des opérations `PATCH`/`PUT`) et
+descriptions des attributs de la spécification récente (« This attribute is
+absent from a GET »). **La spécification 2.11 est antérieure au broker du
+banc** : là où elle est seule source, l'attribut est noté « selon la
+spécification » et une ligne de preuve le vérifie (doc 05, P1 à P4).
+
+| Objet | Attribut | Relisible | Source |
+|---|---|---|---|
+| cluster | `enabled`, `directOnlyEnabled`, `nodeName`, `authenticationClientCertEnabled` | **oui** | export `dmrClusters.json` |
+| cluster | `authenticationClientCertContent` | **non** (write-only) | absent de l'export ; spécification |
+| cluster | `directOnlyEnabled` modifiable | non, lecture seule après création | constat 20/09 ; spécification |
+| lien | `enabled`, `span`, `initiator`, `authenticationScheme`, `transportTlsEnabled` | **oui** | export `links.json` |
+| lien | écart sur `span`, `initiator`, `authenticationScheme`, `transportTlsEnabled` | exige le lien désactivé | spécification (« Requires-Disable ») |
+| `remoteAddresses` | `remoteAddress` | **oui** | export `remoteAddresses-*.json` |
+| `remoteAddresses` | modification | exige le lien désactivé | constat (D-008, tâche 3) |
+| pont DMR | `remoteNodeName`, `remoteMsgVpnName` | **oui** | export `dmrBridges.json` |
+| règle / condition de certificat | `enabled`, `source`, `expression` | indéterminé (non exporté) | preuve P1 ; le script crée si la lecture ne trouve rien |
+| broker | `tlsServerCertContent` | **non** (write-only) | spécification ; absent du GET à confirmer (P4) |
+| CA `peaas-federation-ca` | `certContent` | indéterminé : lisible selon la spécification, non exporté | preuve P2 ; le script traite les deux cas |
+| monitor du lien | `up`, `failureReason` | **oui** | export `links-etat.json` |
+| monitor du lien | `uptime` | selon la spécification (« time in seconds since the Link was up ») ; non exporté | preuve P3 ; affiché « non fourni » s'il manque |
+| tout objet absent | code de réponse | indéterminé : `400 NOT_FOUND` supposé (forme vue au `DELETE`), `404` accepté | preuve P1 ; toute autre réponse arrête le script |
+| certificat serveur | contenu comparable | **non par SEMP** ; oui par le port 55443 (`openssl s_client`, vérifié le 11/09 sur un broker) | méthode de preuve seulement (D-019) |
+
+Écart relevé, sans effet sur le lot : la spécification 2.11 marque
+`authenticationClientCertContent` du cluster « Requires-Disable » et
+`tlsServerCertContent` « requires HTTPS » ; sur soltr 10.26, `solace-dmr.sh` les a posés
+en HTTP (port 8080), le second sur un cluster créé actif, et le lien est monté
+(banc du 20/09, D-026). Le broker du banc fait
+foi ; la preuve P6 le relève de nouveau.
 
 ## Installation du générateur
 

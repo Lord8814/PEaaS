@@ -124,6 +124,13 @@ broker : `solace-dmr.test.js` sous `PEAAS_SOLACE_IT=1` rejoue avec un pair
 d'IP modifiée et relit la liste.
 
 **Amendée (D-026, 20/09).** Le nom du cluster DMR n'est plus commun à la fédération : `federation.dmr_cluster_name` en est le **préfixe**, et chaque site a son propre cluster `<préfixe>-<id>`. Avec un cluster commun, le lien monte mais aucun message ne traverse (vérifié sur deux brokers réels). Le script pose en outre un pont DMR par pair, un certificat client de cluster et une règle de correspondance de certificat.
+
+**Amendée (23/09, tâche 2) — rejeu idempotent dans ses effets, pas seulement dans son état final.** Jusqu'au 22/09, un rejeu retombait sur le bon état en traversant un état cassé : lien remis à `enabled:false` à chaque passage, `PUT` de remplacement sur le cluster, le lien, le pont et la règle (un `PUT` SEMPv2 remet à leur défaut les attributs qu'il ne précise pas), certificats reposés. Désormais `solace-dmr.sh` relit chaque objet avant d'écrire, le crée seulement s'il est absent, et ne `PATCH`e que les champs en écart. **Contre un état conforme, il n'écrit rien.**
+- *Ce qu'un rejeu désactive.* Le lien, et seulement quand une correction l'exige : attribut « Requires-Disable » en écart (`span`, `initiator`, `authenticationScheme`, `transportTlsEnabled` — spécification SEMPv2), liste `remoteAddresses` en écart (refusée sur lien actif), ou pont créé ou corrigé sous un lien actif (validité jugée à l'activation). Il est réactivé dans le même passage ; un arrêt entre les deux est signalé, et le rejeu suivant le réactive.
+- *Ce qu'un rejeu ne modifie pas.* Les contenus write-only — `tlsServerCertContent`, `authenticationClientCertContent`, et le `certContent` de la CA si le broker ne le renvoie pas. Ils ne sont reposés que si le cluster était absent (première configuration, `data/` du broker effacé), si les fichiers ont changé depuis la dernière pose (empreintes sha256 dans `solace/tls/.empreintes-posees`), ou sur `--reposer-certificats`. Sans empreinte connue, ils sont **laissés tels quels et signalés** : qu'une repose seule ne coupe pas le lien n'est pas établi (mesure « uptime », doc 05).
+- *Écarté.* Reposer les certificats à chaque passage « parce que le contenu est identique » (effet sur le lien non mesuré) ; comparer le certificat présenté sur 55443 par `openssl s_client` (outil non garanti sur la machine, D-019 ; reste une méthode de preuve).
+- *Preuve.* `solace-dmr-rejeu.test.js`, contre un broker SEMP simulé avec état (`faux-semp.js`) : rejeu d'un état conforme sans aucune écriture ; chaque écart corrigé seul. Onze des douze tests échouaient avant. **Non établi sans broker** : que l'`uptime` du lien continue de croître pendant un rejeu réel (doc 05, « À exécuter sur les VM de site »).
+- *Commits.* PEaaSrepo `62ea7ba`, web `97bfc0b`.
 ---
 
 ## D-009 — Le versionnement remplace l'archivage de conteneurs
@@ -217,6 +224,8 @@ et sort en 0.
 **Décision.** API de gestion Solace (SEMP), Admin API d'APISIX et etcd publiés sur `127.0.0.1` uniquement. Seuls les flux inter-sites de la section 8.1 sont exposés.
 **Raison.** Les scripts de configuration s'exécutent sur l'hôte ; aucun site n'a besoin d'administrer un autre.
 **Statut.** Retenu. **Implémenté (tâche 6, 11/09)** : Admin API + métriques APISIX (9180/9091) et SEMP Solace (8080) liés à `127.0.0.1` dans le compose du catalogue (jusque-là publiés sur toutes les interfaces, malgré des métadonnées `ports:` qui l'annonçaient déjà). etcd va plus loin que la décision : aucun port publié du tout, y compris en local (jamais consulté depuis l'hôte). CLAUDE.md §Ports corrigé pour Solace, qui listait encore 8080 comme public.
+
+**Amendée (23/09, tâche 5) — PubSub+ Manager en HTTPS publié en local.** Dès que la fédération pose `tlsServerCertContent`, le Manager répond `301` sur 8080 vers `https://<hôte>:1943/` (constat du 22/09 sur A et B) ; 1943 n'étant pas publié, l'administration par tunnel SSH devenait impossible. Le compose Solace publie `127.0.0.1:1943:1943`, comme 8080 ; métadonnées `ports:` alignées ; `ports.test.js` échoue si 1943 manque ou est publié ailleurs que sur `127.0.0.1`. La redirection n'est pas désactivée. **Avertissement attendu dans le navigateur** : le certificat est signé par la CA de la fédération, inconnue du navigateur, et ses SAN (D-013 : nom et adresse du site) ne portent pas `127.0.0.1` ni `localhost`, nom par lequel le tunnel l'atteint. Accepter l'exception pour cette session. Commits PEaaSrepo `f8c8de3`, web `095b4b6`.
 
 ---
 

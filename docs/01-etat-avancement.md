@@ -7,7 +7,29 @@ général et la carte des documents, voir `00-vue-ensemble.md`.
 
 # État d'avancement — PEaaS multi-site
 
-**Dernière mise à jour :** 20/09/2026 (nuit) — séance « identifiants typés et barrière de démarrage stable »
+**Dernière mise à jour :** 23/09/2026 — lot « fédération DMR lancée par l'installation » (tâches 2, 4, 5, garde d'`install.sh`)
+
+## Séance du 23/09 — rejeu sans effet, constat de fédération, 1943
+
+Le 22/09, A et B ont fini en `SUCCES` sans cluster DMR : `pgadmin.sh`
+consommait la suite du manifeste (journal 07, E-12 ; l'hypothèse du
+« manifeste incomplet » était fausse). Corrigé le 22/09 (`83c1e81`). Le 23/09 :
+
+- **Tâche 2** — `solace-dmr.sh` relit avant d'écrire ; rejeu d'un état
+  conforme sans aucune écriture ; certificats reposés seulement sur raison
+  (D-008 amendée). PEaaSrepo `62ea7ba`, web `97bfc0b`.
+- **Tâche 4** — `verifier-federation.sh`, étape 8 d'`install.sh` : lien non
+  monté → avertissement nommé ; SEMP injoignable ou lien absent → `ECHEC`.
+  PEaaSrepo `22624e2`, web `2d7a5b0`.
+- **Tâche 5** — Manager en HTTPS publié sur `127.0.0.1:1943` (D-018 amendée).
+  PEaaSrepo `f8c8de3`, web `095b4b6`.
+- **Garde** — descripteur 3 fermé pour les scripts, lignes du manifeste
+  comptées. Web `fb2b871`.
+
+Suite : 311 tests verts, 1 sauté (intégration broker), dans des worktrees
+propres des deux dépôts. **Rien n'a été vérifié sur un broker réel** : la
+prochaine action est la reprise complète, `05-journal-mesures.md`, section
+« À exécuter sur les VM de site » (procédure et preuves P1 à P9).
 
 ## Phase en cours
 
@@ -301,6 +323,10 @@ Sélection de composants déployée : `etcd`, `apisix`, `postgres`, `solace`.
 - [ ] Troisième machine (site C, index 3), à arbitrer selon la mémoire mesurée
 
 ## Séquence de reprise
+
+> **23/09 :** la procédure détaillée, commandes et résultats attendus, est
+> dans `05-journal-mesures.md`, « À exécuter sur les VM de site ». Les
+> principes ci-dessous restent valables.
 
 L'ordre est contraignant : D-015 exige que le générateur soit figé **avant** le
 premier déploiement chronométré, sinon la courbe de l'affirmation 2 mélange le

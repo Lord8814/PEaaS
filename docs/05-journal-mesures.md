@@ -465,3 +465,208 @@ Mesure close sans nouvelle relance : la liste blanche retenue
 (`[A-Za-z0-9]`, 24 caractères au moins) s'appuie sur le témoin et sur le
 gabarit `dbBaseline.tmpl:479`, pas sur ces arrêts (amendement du 22/09 à
 D-028). Variante `password-filepath` : non vérifiée sur conteneur.
+
+### 23/09 — rejeu de la fédération et constat local : prouvé sans broker, et ce qui ne l'est pas
+
+Aucun conteneur démarré (VM du générateur : 6 à 7,5 Go disponibles, gels du
+22/09). Tout ce qui suit est prouvé contre un broker SEMP **simulé**
+(`faux-semp.js`, forme des exports du 21/09) ; ce qui exige un broker réel est
+une ligne de la section suivante, **non établie** tant qu'elle n'a pas été
+exécutée.
+
+- **Établi par test.** Rejeu de `solace-dmr.sh` contre un état conforme : aucune
+  écriture. Écart d'attribut, d'adresse ou de pont : seul l'écart est corrigé,
+  lien désactivé puis réactivé dans le même passage. Certificat modifié :
+  reposé seul, lien intact. `verifier-federation.sh` : `up` → succès ;
+  `Channel(s) Down` → avertissement nommé, code 0 ; SEMP injoignable, 401 ou
+  lien absent → erreur. `install.sh` : aucune ligne du manifeste ne peut plus
+  rester sans issue.
+- **Non établi.** Qu'un lien réel reste monté pendant un rejeu (P5) ; qu'une
+  repose seule de certificat coupe ou non le lien (P6) ; la forme exacte de
+  quelques réponses (P1 à P4). Ce qui est relisible : table de `docs/03`,
+  « Ce que SEMP permet de relire ».
+
+## À exécuter sur les VM de site
+
+Document de la prochaine reprise (lot du 23/09). Chaque preuve dit ce qu'elle
+tranche ; son résultat se reporte ici, daté, avec la sortie brute utile.
+Aucune de ces commandes ne vise l'autre site : chacune s'exécute **sur la VM
+dont elle parle**, dans le dossier de l'archive (D-018).
+
+**Préambule, sur chaque VM** (à refaire dans chaque terminal) :
+
+```bash
+cd ~/peaas-site-a            # ou ~/peaas-site-b
+. scripts/setup/lib/env.sh
+P="$(env_lire SOLACE_ADMIN_PASSWORD)"
+S=http://127.0.0.1:8080/SEMP/v2
+C="$(awk '/^dmr_cluster_name:/ { gsub(/"/, "", $2); print $2 }' site-profile.yaml)"
+PAIR=site-b                  # sur A ; site-a sur B
+hostname; echo "cluster=$C pair=$PAIR"
+```
+
+### Procédure de reprise complète
+
+1. **Restauration.** Restaurer les deux VM depuis l'instantané
+   `machine-conforme` (journal 07 ; s'il n'a pas été pris, depuis
+   `avant-premier-deploiement` puis préparation D-019 : DNS, NTP).
+   Attendu sur chaque VM : `timedatectl show -p NTPSynchronized` → `yes` ;
+   `docker ps -a` → vide ; `docker network ls | grep peaas` → rien.
+2. **Génération, depuis l'interface.** Sur la VM du générateur :
+   `git -C /mnt/PEaaSrepo status --porcelain` et
+   `git -C /mnt/web status --porcelain` → vides (D-020) ;
+   `cd /mnt/web/webapp && docker compose restart webapp` (D-021 : le code a
+   changé). Générer A et B dans l'interface, même sélection pour les deux.
+   **Mots de passe.** Au commit courant, D-028 n'est implémentée qu'en partie :
+   la liste blanche `[A-Za-z0-9]` est appliquée, le plancher de 24 caractères
+   ne l'est pas (`LONGUEUR_MIN_MOTDEPASSE = 1`, abandonné le 22/09). Un mot de
+   passe alphanumérique d'un caractère, comme ceux des archives du 22/09, est
+   donc toujours accepté par le générateur. Saisir des valeurs longues, par
+   exemple `openssl rand -hex 16` (32 caractères), une par identifiant ;
+   vérifier que la clé APISIX contient au moins une lettre (`pas_nombre`).
+3. **Installation, B puis A, sans intervention.** Sur B puis sur A :
+   ```bash
+   tar xzf peaas-site-b.tar.gz && cd peaas-site-b && ./install.sh; echo "code=$?"
+   ```
+   Attendu sur B : `code=0` ; étape 7, une ligne `applique` par ligne du
+   manifeste (`cat .peaas/setup-scripts`), `solace` et `postgres` compris ;
+   étape 8 : `WARN LIEN NON MONTE vers site-a … premier site` — **attendu**,
+   A n'est pas encore installé. Attendu sur A : `code=0` ; étape 8 :
+   `ok   lien vers site-b (site-b) monte`.
+4. **Vérifications**, dans l'ordre : P7 (lien vu des deux côtés), P1 à P4
+   (lectures), P5 (rejeu, barrière de la tâche 2), P8 (traversée A → B puis
+   B → A), P9 (1943), puis P6 si le temps le permet (seule preuve qui peut
+   perturber le lien).
+5. Reporter chaque résultat ci-dessous ; seulement ensuite, geler le
+   générateur (D-015).
+
+### P1 — Réponse d'un GET sur un objet absent, et lisibilité des règles de certificat
+
+```bash
+curl -sS -u "admin:$P" -w '\nHTTP %{http_code}\n' "$S/config/dmrClusters/n-existe-pas"
+curl -sS -u "admin:$P" "$S/config/dmrClusters/$C/certMatchingRules/peaas-federation/conditions"
+```
+Attendu : `HTTP 400` avec `NOT_FOUND` dans le corps, ou `HTTP 404` ; puis
+une condition `"source":"common-name"`, `"expression":"*"`.
+Tranche : la détection d'absence de `semp_lire` (supposée). Toute autre
+réponse ne crée rien à tort — le script s'arrête sur `GET … -> <code>` — mais
+empêcherait l'installation : à signaler. Note aussi la forme de la réponse
+(sur une ligne ou indentée) : les deux sont lues.
+
+### P2 — `certContent` de la CA relisible ?
+
+```bash
+curl -sS -u "admin:$P" "$S/config/certAuthorities/peaas-federation-ca" | grep -c '"certContent"'
+```
+Attendu : `1` (lisible selon la spécification). Tranche la branche du
+script : `1` → la CA est comparée à son fichier ; `0` → règle des contenus
+non relisibles (empreinte de pose).
+
+### P3 — `uptime` exposé par le monitor du lien
+
+```bash
+curl -sS -u "admin:$P" "$S/monitor/dmrClusters/$C/links/$PAIR?select=up,uptime,failureReason"
+```
+Attendu : `"up":true`, `"uptime":<entier>`, croissant d'un appel à l'autre.
+Tranche : si `uptime` manque, P5 et P6 se mesurent autrement (compteur de
+connexions, `event.log`), et `verifier-federation.sh` l'affiche déjà
+« non fourni par le broker ».
+
+### P4 — Certificats absents d'un GET (write-only)
+
+```bash
+curl -sS -u "admin:$P" "$S/config" | grep -c tlsServerCertContent
+curl -sS -u "admin:$P" "$S/config/dmrClusters/$C" | grep -c authenticationClientCertContent
+```
+Attendu : `0` et `0` (le second est déjà établi par l'export du 21/09).
+Tranche : aucune comparaison par SEMP n'est possible, d'où la règle des
+empreintes.
+
+### P5 — Rejeu sans coupure (barrière de la tâche 2)
+
+Sur A, puis sur B, dans cet ordre, sans rien d'autre entre les deux :
+```bash
+bash scripts/setup/verifier-federation.sh --attente 0      # relever UPTIME (U1)
+bash scripts/setup/solace-dmr.sh | tee /tmp/rejeu.txt
+grep -E '^  ok   (PUT|PATCH|POST|DELETE) ' /tmp/rejeu.txt   # attendu : aucune ligne
+bash scripts/setup/verifier-federation.sh --attente 0      # relever UPTIME (U2)
+```
+Puis de nouveau sur A : `verifier-federation.sh --attente 0` (U3).
+Attendu : aucune écriture dans la sortie du rejeu (`lien site-b : conforme,
+non modifie`, certificats `inchange depuis la derniere pose`) ; **l'`uptime`
+a continué de croître, sans retour à zéro** : U2 ≥ U1 + durée écoulée, et U3
+de même sur A après le rejeu de B.
+Tranche : l'affirmation « le rejeu est sans effet » de D-008 amendée. Un
+retour à zéro alors qu'aucune écriture n'a été émise mettrait en cause autre
+chose que le script (à consigner tel quel).
+
+### P6 — Une repose seule de certificat coupe-t-elle le lien ? (non établi)
+
+Sur A seulement, après P5 :
+```bash
+bash scripts/setup/verifier-federation.sh --attente 0      # U1
+bash scripts/setup/solace-dmr.sh --reposer-certificats     # attendu : PATCH -> 200 seulement (2, ou 3 si P2 = 0)
+bash scripts/setup/verifier-federation.sh --attente 0      # U2, immédiatement
+bash scripts/setup/verifier-federation.sh --attente 60     # U3, le lien doit être up
+```
+Répéter sur B séparément (côté receveur : son certificat serveur sert au
+handshake).
+Tranche : si U2 < U1, une repose coupe le lien et la règle prudente de
+`solace-dmr.sh` (ne jamais reposer sans raison) est justifiée ; sinon, la
+repose est sans effet mesuré sur le lien — ce qui n'autorise pas encore à la
+rendre systématique (une seule mesure). Relève au passage l'écart avec la
+spécification 2.11 : le `PATCH` du certificat client sur un cluster actif doit
+répondre `200`.
+
+### P7 — Lien vu des deux côtés après installation
+
+Sur B (après l'installation de A), puis sur A :
+```bash
+bash scripts/setup/verifier-federation.sh
+```
+Attendu : `up` `true` des deux côtés, `failureReason` vide, code 0.
+Tranche : la fédération montée par l'installation seule, depuis une archive
+de l'interface (affirmation 3, côté lien).
+
+### P8 — Traversée d'un message A → B, puis B → A
+
+Client `mosquitto` jetable sur le réseau `peaas` **du site où il tourne** ;
+chaque client vise le broker local (`solace:1883`), jamais l'autre VM. QoS 0 :
+le trafic inter-sites est en mode direct (D-026).
+
+Sur B (abonné, lancé en premier) :
+```bash
+U="$(env_lire SOLACE_CLIENT_USERNAME)"; W="$(env_lire SOLACE_CLIENT_PASSWORD)"
+docker run --rm --network peaas eclipse-mosquitto:2 \
+  mosquitto_sub -h solace -p 1883 -u "$U" -P "$W" -t 'peaas/recette/#' -v -C 1 -W 120
+```
+Sur A, dans les 120 s :
+```bash
+U="$(env_lire SOLACE_CLIENT_USERNAME)"; W="$(env_lire SOLACE_CLIENT_PASSWORD)"
+docker run --rm --network peaas eclipse-mosquitto:2 \
+  mosquitto_pub -h solace -p 1883 -u "$U" -P "$W" -t peaas/recette/a-vers-b \
+  -m "de $(hostname) $(date -u +%FT%TZ)"
+```
+Attendu sur B : `peaas/recette/a-vers-b de <nom de la VM A> <heure>`, puis
+sortie en code 0. Recommencer en inversant les rôles (topic
+`peaas/recette/b-vers-a`). Le nom d'hôte dans le message prouve les deux VM
+(reste ouvert de E-06). Aucun écart d'horodatage n'est à interpréter (D-017).
+Tranche : l'affirmation 3 de bout en bout. Côté limites : c'est une recette,
+pas un contrôle d'`install.sh` — un site ne peut pas provoquer un abonné chez
+son voisin sans l'administrer (D-018) ; `verifier-federation.sh` s'arrête
+donc volontairement au côté local du lien.
+
+### P9 — PubSub+ Manager joignable par tunnel, et seulement en local
+
+Sur chaque VM :
+```bash
+docker port solace | grep 1943           # attendu : 1943/tcp -> 127.0.0.1:1943
+curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' http://127.0.0.1:8080/
+```
+Attendu : la seconde ligne montre `301 https://…:1943/`. Depuis le poste :
+`ssh -L 18943:127.0.0.1:1943 <utilisateur>@<VM>`, puis
+`https://127.0.0.1:18943/` : **avertissement de certificat attendu** (signé
+par la CA de la fédération, SAN sans `127.0.0.1`), puis la page de connexion.
+Depuis l'autre VM : `curl -sk -m 5 https://<adresse de la VM>:1943/; echo $?`
+→ code non nul (connexion refusée).
+Tranche : tâche 5 et D-018 (Manager joignable par tunnel, jamais par le pair).
