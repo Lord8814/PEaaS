@@ -7,7 +7,7 @@ général et la carte des documents, voir `00-vue-ensemble.md`.
 
 # État d'avancement — PEaaS multi-site
 
-**Dernière mise à jour :** 23/09/2026 — lot « fédération DMR lancée par l'installation » (tâches 2, 4, 5, garde d'`install.sh`)
+**Dernière mise à jour :** 06/10/2026 — cases « message A → B sur les VM » et phase 3 (déclaration d'Ethan, constat du 06/10 joint ; voir `docs/exploration/`). Contenu précédent : 23/09/2026, lot « fédération DMR lancée par l'installation » (tâches 2, 4, 5, garde d'`install.sh`)
 
 ## Séance du 23/09 — rejeu sans effet, constat de fédération, 1943
 
@@ -312,7 +312,13 @@ Sélection de composants déployée : `etcd`, `apisix`, `postgres`, `solace`.
 ### À faire, par ordre de dépendance
 
 - [ ] Lien DMR actif entre A et B **sur les VM**, depuis une archive de l'interface
-- [ ] Message publié sur A reçu sur B **sur les VM**
+- [x] Message publié sur A reçu sur B **sur les VM** — déclaré fonctionnel
+      par Ethan le 06/10/2026. **Constat du 06/10, vers 14h, contraire** : A
+      et B redémarrés vers 13h53, C injoignable ; VPN `default` à
+      `state: down` sur A et B (`DMR Subscription Sync (v:site-c)`) ; canal
+      de contrôle A↔B monté, pont de données fermé ; aucun message observé
+      (`exploration/site-a.md` § 0, `site-b.md` § 4). Aucune trace consignée
+      d'un message traversant les VM après le 21/09 (journal 07, E-06).
 - [ ] NTP activé sur A et B (clause D-017 — jamais fait sur les clones)
 - [ ] Installation complète **sans intervention manuelle**, machines restaurées,
       archives régénérées par l'interface
@@ -399,7 +405,7 @@ nos essais.
 | 0 | Adressage, dépôt, machines conformes, chronométrage en place | Les liens s'établissent — **fait pour A ↔ B au niveau réseau** |
 | 1 | Générateur : catalogue, topologie, profil, certificats, setup | Un package généré s'installe seul, sur VM vierge ; générateur figé — **en cours** |
 | 2 | Site A déployé | Socle fonctionnel, temps mesuré |
-| 3 | Site B + lien A↔B | Message publié sur A reçu sur B |
+| 3 | Site B + lien A↔B | Message publié sur A reçu sur B — **message vérifié** (déclaré par Ethan le 06/10/2026 ; constat du 06/10 à 14h contraire : VPN `down` sur A et B, aucun message observé, `exploration/site-a.md` § 0) |
 | 4 | Site C + maillage complet | Les 3 liens actifs |
 | 5 | Routage API cross-site, point d'entrée unique | Coupure d'un site sans interruption |
 | 6 | Scripts de cas d'usage | Un script appliqué par-dessus le socle |
