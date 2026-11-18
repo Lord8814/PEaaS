@@ -526,7 +526,7 @@ conteneur en boucle.
 **Écarté.** Réécriture complète du générateur et des scripts.
 **Conséquence.** Le seuil des 5 min est remesuré en fin de L1 sur le code solidifié.
 **Statut.** Retenu.
-**Implémenté en partie (18/11, L1 prompt 01).** État des lieux du 16/11 : aucun module n'a besoin d'être réécrit pour être testé. Filet écrit (`webapp/app/filet.js`, commit `1cf8564`) et testé à blanc (faux `ssh`, `scp`, `docker`). Résultat de référence sur les vraies VM **non produit** : aucun site n'est joignable depuis la VM de génération (`docs/01`, section « Contrat de site, validateur et filet »).
+**Implémenté en partie (18/11, L1 prompt 01).** État des lieux du 16/11 : aucun module n'a besoin d'être réécrit pour être testé. Filet écrit (`webapp/app/filet.js`, commit `1cf8564`) et testé à blanc (faux `ssh`, `scp`, `docker`). **Référence produite le 19/11** sur le banc Hyper-V (3 sites, D-031 amendé) : installation en 0 sur les trois sites, liens DMR actifs des deux côtés et messages reçus dans les deux sens sur les trois paires ; seul point rouge, la santé des conteneurs (aucun healthcheck, RE1). Détail : `docs/01`, section « Contrat de site, validateur et filet ».
 
 ---
 

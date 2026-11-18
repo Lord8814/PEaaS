@@ -51,29 +51,35 @@ aucun secret. Options : `--sites`, `--generateur`, `--dossier-distant`,
   | S1 | 8 services sur 8 sans healthcheck | RE1 |
   | S3 | 7 services sur 8 sans limite mémoire ni CPU | FR2 |
 
-- Filet, mode complet, générateur `1cf85643fce2` (propre), 18/11 22:46 :
-  **aucun site joignable**, 16 échecs, code 1 (rapport
-  `filet-20261118t214639z-12d6f5`). Aucune génération, aucune installation.
-  Le filet n'a donc **pas encore de référence sur les sites réels** ; il est
-  éprouvé à blanc seulement (11 tests, faux `ssh`/`scp`/`docker`).
+- **Filet, référence sur le banc Hyper-V** (3 sites neufs, `docs/11-banc-hyperv.md`),
+  mode complet, vraie autorité, générateur `44efed221495` (propre), catalogue
+  `35e68d8c043a`, 18/11 23:47 → 19/11 00:20, rapport
+  `filet-20261118t224716z-d77cb4` : **16 ok, 3 échecs, 3 avertissements**,
+  code 1.
+
+  | Point | site-a | site-b | site-p |
+  |---|---|---|---|
+  | génération, transfert | ok | ok | ok |
+  | contrat (mode rapport) | avertissement : 23/28 | idem | idem |
+  | `install.sh` | **0, 573 s** | **0, 580 s** | **0, 520 s** |
+  | conteneurs | **échec** : 7 sur 8 sans healthcheck (seul `nodered1` est `healthy`, par son image) | idem | idem |
+
+  Liens DMR A↔B, A↔P et B↔P : **actifs, lus par SEMP des deux côtés**.
+  Messages : **reçus dans les deux sens sur les trois paires**, une seule
+  publication à chaque fois. Les durées d'installation comprennent le
+  premier téléchargement des images (machines neuves) : elles ne valent pas
+  mesure du seuil des 5 min (D-032, remesure en fin de L1).
+  Seul point rouge : S1 (healthchecks), à corriger par RE1, sans rien corriger
+  ici (prompt 01).
+- Avant le banc (18/11 22:46, générateur `1cf85643fce2`) : aucun site
+  joignable, 16 échecs (rapport `filet-20261118t214639z-12d6f5`).
 - Tests : `npm test` = 393, 365 verts, 27 rouges, 1 sauté. Les 27 rouges
   sont tous dans `install.test.js` : contrat de machine, 1,7 Go de RAM sur la
   copie Hyper-V contre 8 Go requis. Ce ne sont pas des régressions.
 
-**Ce qui manque pour la référence du filet** (dépendance humaine) :
-
-1. Les VM de site allumées, joignables depuis la VM de génération par un réseau
-   d'administration. Aujourd'hui, la VM de génération est une copie Hyper-V sur
-   le pc-fixe (Default Switch), et les sites sont des VM VirtualBox du portable,
-   sur le réseau NAT `MultiSite` (`192.168.90.0/24`).
-2. Dans `~/.ssh/config` de la VM de génération, un alias par site,
-   `peaas-<id>` (`HostName`, `User`, clé), avec la clé autorisée sur le site.
-   Aucun n'existe.
-3. Une topologie qui correspond aux VM réelles : elle déclare quatre sites
-   (`site-a`, `site-b`, `site-p`, `test-chrono`), pas A, B, C. `--sites`
-   permet de restreindre.
-4. Sur chaque site, l'image `eclipse-mosquitto:2` présente, ou un accès au
-   registre (vérification des messages).
+**Banc** (18/11, D-031 amendé) : trois VM Hyper-V sur le pc-fixe, construites
+pour le pilote (`site-a`, `site-b`, `site-p` ; `test-chrono` retiré de la
+topologie). Se connecter, tester, revenir en arrière : `docs/11-banc-hyperv.md`.
 
 ## Séance du 23/09 — rejeu sans effet, constat de fédération, 1943
 
