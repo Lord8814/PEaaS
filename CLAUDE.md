@@ -1,5 +1,14 @@
 # PEaaS — socle mono-VM (`/mnt`)
 
+## Phase pilote (depuis le 12/11/2026)
+- On solidifie, on ne réécrit pas. Réécrire un module seulement s'il n'est pas testable en l'état, et le signaler avant.
+- Ce qu'est un site est défini par docs/10-contrat-de-site.md ; toute modification du générateur ou du catalogue garde le validateur au vert, ou met à jour le contrat avec la décision qui le justifie.
+- Une session = une étape du planning (ID : RE1, SE6…). Le message de commit cite l'ID.
+- Après chaque modification : validateur, puis filet. Un échec bloque le commit.
+- Avancer seul sur le réversible ; consigner chaque choix dans docs/09-choix-execution.md. S'arrêter pour : action sur /srv/peaas-ca (hors lecture d'un certificat public), suppression hors banc, divergence avec le journal, dépendance externe.
+- Les décisions du journal sont la spécification ; toute divergence est signalée, jamais tranchée seule.
+- Aucune optimisation de voisinage ; aucun secret dans Git, dans les archives de test ni dans les rapports.
+
 ## Contraintes
 
 ### Fichiers versionnés → `PEaaSrepo/`

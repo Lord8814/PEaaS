@@ -7,7 +7,73 @@ général et la carte des documents, voir `00-vue-ensemble.md`.
 
 # État d'avancement — PEaaS multi-site
 
-**Dernière mise à jour :** 06/10/2026 — cases « message A → B sur les VM » et phase 3 (déclaration d'Ethan, constat du 06/10 joint ; voir `docs/exploration/`). Contenu précédent : 23/09/2026, lot « fédération DMR lancée par l'installation » (tâches 2, 4, 5, garde d'`install.sh`)
+**Dernière mise à jour :** 18/11/2026 — phase pilote, lot L1, prompt 01 : contrat de site, validateur et filet (D-032, D-042). Contenu précédent : 06/10/2026 — cases « message A → B sur les VM » et phase 3 (déclaration d'Ethan, constat du 06/10 joint ; voir `docs/exploration/`).
+
+## Contrat de site, validateur et filet (L1, prompt 01, 16-18/11)
+
+Trois niveaux de preuve (D-042) : le **contrat** dit ce qu'un package de site
+doit être (`docs/10-contrat-de-site.md`, 28 clauses) ; le **validateur** juge la
+forme de chaque package, sans site ; le **filet** vérifie le comportement des
+sites déployés (D-032). Choix d'exécution : `docs/09-choix-execution.md`.
+
+**Commandes** (depuis `/mnt/web/webapp/app`, sur la VM de génération) :
+
+| Commande | Ce qu'elle fait |
+|---|---|
+| automatique à chaque génération de package de site | validation ; `PEAAS_CONTRAT_MODE=rapport` (défaut, `webapp/compose.yaml`) joint `.peaas/validation-contrat.json` et `.txt` ; `bloquant` refuse en 409 en nommant les clauses |
+| `node validate-site.js peaas-<site>.tar.gz [--json]` | même validation sur une archive ; code 0 conforme, 1 non conforme, 2 usage |
+| `node filet.js` | mode complet, pour chaque site de la topologie : générer (sélection et identifiants du site en place), valider, transférer (chronométré), `install.sh` ; puis les vérifications |
+| `node filet.js --verification-seule` | les vérifications seules |
+| `node filet.js --a-blanc` | rien n'est joint : le plan, et ce qui manque (alias SSH) |
+
+**Ce que vérifie le filet**, avec un verdict par point : `install.sh` sorti en 0
+et sa durée (`.peaas/mesures.log`) ; chaque conteneur du site `running` et
+`healthy` ; chaque lien DMR de la topologie actif, lu par SEMP des deux côtés
+(`verifier-federation.sh` du site, par SSH) ; un message dans les deux sens sur
+chaque paire de sites (client `mosquitto` jetable sur le réseau `peaas` du site,
+broker local, recette P8 du doc 05, identifiant unique par exécution) ; le hash
+du générateur, avec un avertissement s'il porte `-dirty`. Code 1 si un point
+échoue. Rapport horodaté dans `/mnt/web/filet-rapports/` (ignoré par Git), sans
+aucun secret. Options : `--sites`, `--generateur`, `--dossier-distant`,
+`--attente-dmr`, `--delai-message`, `--image-mqtt`.
+
+**Résultat de référence**
+
+- Validateur, générateur `208e6111eee5`, catalogue `3e867ec2ccde`, quatre
+  packages (`site-a`, `site-b`, `site-p`, `test-chrono`, tous composants) :
+  **23/28 conformes, 5 violées**, identiques sur les quatre sites.
+
+  | Clause violée | Constat | Corrigée par |
+  |---|---|---|
+  | F3 | `scripts/setup/` en 0777 (2 dossiers, 9 scripts) | à rattacher (SE6 ou IN1) |
+  | R4 | `solace` publie 55555, 1883, 8000, 5672, 9000 en local | SE6 |
+  | M1 | 8 images sur 8 sans digest | IN2 |
+  | S1 | 8 services sur 8 sans healthcheck | RE1 |
+  | S3 | 7 services sur 8 sans limite mémoire ni CPU | FR2 |
+
+- Filet, mode complet, générateur `1cf85643fce2` (propre), 18/11 22:46 :
+  **aucun site joignable**, 16 échecs, code 1 (rapport
+  `filet-20261118t214639z-12d6f5`). Aucune génération, aucune installation.
+  Le filet n'a donc **pas encore de référence sur les sites réels** ; il est
+  éprouvé à blanc seulement (11 tests, faux `ssh`/`scp`/`docker`).
+- Tests : `npm test` = 393, 365 verts, 27 rouges, 1 sauté. Les 27 rouges
+  sont tous dans `install.test.js` : contrat de machine, 1,7 Go de RAM sur la
+  copie Hyper-V contre 8 Go requis. Ce ne sont pas des régressions.
+
+**Ce qui manque pour la référence du filet** (dépendance humaine) :
+
+1. Les VM de site allumées, joignables depuis la VM de génération par un réseau
+   d'administration. Aujourd'hui, la VM de génération est une copie Hyper-V sur
+   le pc-fixe (Default Switch), et les sites sont des VM VirtualBox du portable,
+   sur le réseau NAT `MultiSite` (`192.168.90.0/24`).
+2. Dans `~/.ssh/config` de la VM de génération, un alias par site,
+   `peaas-<id>` (`HostName`, `User`, clé), avec la clé autorisée sur le site.
+   Aucun n'existe.
+3. Une topologie qui correspond aux VM réelles : elle déclare quatre sites
+   (`site-a`, `site-b`, `site-p`, `test-chrono`), pas A, B, C. `--sites`
+   permet de restreindre.
+4. Sur chaque site, l'image `eclipse-mosquitto:2` présente, ou un accès au
+   registre (vérification des messages).
 
 ## Séance du 23/09 — rejeu sans effet, constat de fédération, 1943
 

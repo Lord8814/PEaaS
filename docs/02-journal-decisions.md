@@ -27,6 +27,7 @@ Format : date, décision, raison, alternatives écartées, statut.
 **Raison.** Historique, relecture, retour arrière et sauvegarde obtenus sans développement. Un script de configuration est du code.
 **Écarté.** Base orientée documents dédiée (composant supplémentaire à maintenir). PostgreSQL du socle (dépendance circulaire : composant déployé par le générateur).
 **Statut.** Retenu. Précisé le 10/09 : un dossier par produit (`catalogue/<produit>/`), contenant son entrée `produit.yaml` et ses gabarits. Un site ne reçoit que son archive ; il n'a ni copie ni accès au dépôt pour se déployer. Aucun dépôt distant à ce stade : l'argument de sauvegarde distribuée n'est pas mis en œuvre dans le PoC.
+**Amendé par D-036 (16/11/2026).** Un dépôt distant existe à partir de L4 : Forgejo sur la VM du générateur, `PEaaSrepo` et le générateur en remote, branche principale protégée. Les sites n'y accèdent toujours pas : un site ne reçoit que son archive.
 
 ---
 
@@ -167,6 +168,7 @@ et sort en 0.
 **Raison.** Un secret par défaut est un secret public. Aucun secret dans le dépôt.
 **Statut.** Retenu. Constat du 10/09 : la saisie existe côté interface, mais six identifiants restent en dur dans le code ou les gabarits (Solace, PostgreSQL ×2, pgAdmin ×2, Grafana). À supprimer.
 **Implémenté (tâche 6, 11/09).** Le constat du 10/09 ne tenait plus à l'examen (aucun identifiant en dur retrouvé dans le catalogue actuel) ; le vrai manque était la chaîne de bout en bout, absente côté générateur. `/api/components` expose désormais les `identifiants` requis par produit ; `/api/package` les valide (400, identifiant(s) manqués nommés) avant d'ouvrir le flux d'archive, comme la topologie. `.env` de l'archive (0600) les porte, émis dès qu'un composant retenu en requiert un (avant : multisite uniquement). `solace-dmr.sh` lisait un mot de passe SEMP fixe (`admin`) : lit maintenant `SOLACE_ADMIN_PASSWORD` du `.env` si `SOLACE_SEMP_PASS` n'est pas fourni.
+**Amendé par D-034 (16/11/2026).** Les identifiants ne sont plus saisis à la génération par défaut : `install.sh` génère chaque identifiant absent du `.env` du site (aléatoire, unique par site, 0600) et ne réécrit jamais une valeur existante. Un identifiant fourni à la génération est pris tel quel. Le principe « aucune valeur par défaut » est conservé. À coder en L2 (SE1).
 
 ---
 
@@ -207,7 +209,7 @@ et sort en 0.
 **Décision.** Un site déjà déployé récupère périodiquement sa configuration à jour dans le dépôt, plutôt qu'un déclenchement réseau ou un push depuis l'interface.
 **Raison.** Aucun port entrant supplémentaire, compatible avec des sites non joignables en entrée.
 **Point de tension.** Dépendance d'exécution non bloquante au plan de contrôle (voir section 9.2) ; nature de ce qui est récupéré (profil produit ou topologie) encore ouverte (section 14).
-**Statut.** Retenu, non implémenté.
+**Statut.** ~~Retenu, non implémenté.~~ **Remplacé par D-035 (16/11/2026)** pour le pilote : plus de pull périodique ; une commande par site existant (`update-site.sh --profil`). Reporté en phase 2. Le tirage implémenté le 03/11 (`--url`, `--planifier`, second port) reste à retirer du code.
 
 ---
 
@@ -512,6 +514,112 @@ conteneur en boucle.
 **Consignation.** Consignée le 22/09 sous D-031 ; prévue initialement sous D-021, numéro attribué entre-temps à une autre décision.
 
 **Amendé (22/09).** Chaque VM de site porte une seconde carte réseau en pont sur le réseau domestique, réservée à l'accès d'administration de l'opérateur (SSH, puis tunnels vers les interfaces liées à 127.0.0.1, D-018). Elle ne fait pas partie de la topologie : `host_address` reste l'adresse du réseau NAT MultiSite, seule adresse présente dans les SAN des certificats (D-013) et dans les `remoteAddress` des liens DMR. Le garde-fou « une seule interface réseau par VM » est remplacé par : une seule interface réseau porte la topologie (réseau NAT MultiSite) ; la seconde, en pont, ne sert qu'à l'administration. Vérification : exports SEMP et SAN ne contiennent que des adresses 192.168.90.x. Écarté : réseau host-only (réseau qui n'existe que parce que les VM partagent un hôte, déjà écarté ci-dessus). Limite : `install.sh` accepte `host_address` sur n'importe quelle interface locale ; il ne détecte donc pas une topologie qui déclarerait par erreur l'adresse en pont. Hébergement constaté le 22/09 : la VM du générateur est sur un autre poste que les VM de site.
+
+---
+
+## D-032 — Solidification du code du PoC, pas de réécriture
+**Date.** 16/11/2026
+**Décision.** Le pilote part du code du PoC. Un filet de non-régression à trois sites (déploiement, liens DMR actifs, échange de messages) est mis en place avant tout correctif et rejoué après chacun. Un module n'est réécrit que s'il ne peut pas être testé en l'état ; la restructuration en trois niveaux (IN1) se fait module par module. Les décisions existantes du journal restent la spécification.
+**Raison.** Les risques d'intégration (DMR, mTLS, SEMPv2) sont levés et validés ; ce qui manque (healthchecks, ports, limites, images épinglées) s'ajoute sans réécriture. Une réécriture complète coûterait environ deux semaines sur le chemin critique (3 jours de marge sur le 03/02).
+**Écarté.** Réécriture complète du générateur et des scripts.
+**Conséquence.** Le seuil des 5 min est remesuré en fin de L1 sur le code solidifié.
+**Statut.** Retenu.
+**Implémenté en partie (18/11, L1 prompt 01).** État des lieux du 16/11 : aucun module n'a besoin d'être réécrit pour être testé. Filet écrit (`webapp/app/filet.js`, commit `1cf8564`) et testé à blanc (faux `ssh`, `scp`, `docker`). Résultat de référence sur les vraies VM **non produit** : aucun site n'est joignable depuis la VM de génération (`docs/01`, section « Contrat de site, validateur et filet »).
+
+---
+
+> **D-033 à D-041 : arbitrages du pilote du 16/11/2026**, tranchés sur
+> délégation de Lord (écarts de la section 6 du cadrage). Lord garde un droit
+> de veto : une entrée contestée repasse en « En cours ». Trois rôles restent
+> humains et ne sont jamais tenus par Claude, qui en prépare seulement les
+> supports : le testeur externe (AU6), l'expert sécurité (SE7), la validation
+> du contrat d'interface par l'équipe de la plateforme centralisée (AU4) ;
+> de même pour les démos de fin de lot et le go/no-go.
+
+## D-033 — Règles d'autonomie de Claude Code
+**Date.** 16/11/2026
+**Décision.** Claude Code avance seul sur toute action réversible et couverte par le journal. Il consigne chaque choix d'exécution dans `docs/09-choix-execution.md`, sous la forme date, étape, choix, raison. Il s'arrête et demande dans quatre cas : toute action sur l'autorité de certification (`/srv/peaas-ca`), dont la perte est irréversible (D-006) ; toute suppression de données hors du banc ; toute divergence avec une décision du journal ; toute étape qui dépend d'une personne externe.
+**Raison.** La délégation porte sur la vitesse, pas sur l'irréversible.
+**Écarté.** Une validation humaine à chaque plan : c'est le goulot identifié dans le cadrage, section 6.
+**Statut.** Retenu.
+
+---
+
+## D-034 — Identifiants générés à l'installation (amende D-011, tranche SE1)
+**Date.** 16/11/2026
+**Décision.** `install.sh` génère chaque identifiant absent du `.env` du site, avec une valeur aléatoire unique par site, droits 0600. Il ne réécrit jamais une valeur existante, ce qui rend le rejeu et `update-site.sh` sans effet sur les identifiants. Un identifiant peut encore être fourni à la génération : il est alors pris tel quel. Le générateur ne voit plus, ne transmet plus et ne conserve plus aucun secret par défaut. Le principe « aucune valeur par défaut » de D-011 est conservé.
+**Raison.** Une archive sans secret peut transiter sans précaution. L'unicité par site est garantie par construction. Aucun lien inter-site ne repose sur un mot de passe partagé : DMR utilise le mTLS par certificat de site (D-006).
+**Conséquence.** Le `.env` entre dans la sauvegarde du site (RE4), sinon la restauration (RE5) perd les accès.
+**Écarté.** La saisie à la génération (D-011 d'origine) : le secret transite dans l'archive et dépend de la vigilance de l'opérateur.
+**Statut.** Retenu. À coder en L2 (SE1). La frontière générateur/`install.sh` est posée dès IN1.
+
+---
+
+## D-035 — Mise à jour de topologie : D-016 remplacé pour le pilote
+**Date.** 16/11/2026
+**Décision.** Le pull périodique (D-016) est abandonné pour le pilote. Ajouter ou retirer un site, c'est modifier la topologie (validée, voir D-036), générer, puis lancer une commande par site existant (`update-site.sh --profil`, décision du 03/11). Aucune édition manuelle de configuration n'est faite sur un site. Le seuil du pilier Industrialisation devient : « ajout ou suppression d'un site depuis la topologie, sans édition manuelle de configuration, une commande par site existant, testé automatiquement (IN6) ».
+**Raison.** Le pull suppose une source joignable depuis les trois sites, donc un dépôt distant, ce que D-001 exclut. La décision du 03/11 tranche déjà pour la simplicité.
+**Écarté.** Pull depuis la forge : cela ajoute une dépendance d'exécution au plan de contrôle. Reporté en phase 2.
+**Statut.** Retenu. D-016 passe à « Remplacé ».
+**Écart constaté (18/11).** La décision du 03/11 n'a pas d'entrée dans ce journal : elle n'existe que par les commits `6cc8fe9` et `208e611` du générateur. Ces commits implémentent aussi le tirage de D-016 (`update-site.sh --url`, `--planifier`, second port 3002, `.peaas/update.conf`), encore présent dans le code. Le retirer est hors du prompt 01 ; la clause O4 du contrat de site (D-042) garde qu'aucune archive ne porte de source de tirage.
+
+---
+
+## D-036 — Forge auto-hébergée pour la revue de topologie (AU3, IN3)
+**Date.** 16/11/2026
+**Décision.** Forgejo en conteneur sur la VM du générateur, avec les dépôts `PEaaSrepo` et générateur en remote. La branche principale est protégée, et toute modification de topologie passe par une demande de fusion. La validation est un script autonome du dépôt (`validate-topology`), lancé à deux endroits : dans la CI Forgejo Actions, qui le fait tourner avec la génération de test ; en hook local, qui sert de garde-fou si la forge est indisponible.
+**Raison.** La démo L4 « modification refusée puis acceptée » demande une vraie demande de fusion visible. Un hook seul se contourne avec `--no-verify`. Forgejo est libre, léger et tourne sur une VM qui existe déjà. Le générateur est le plan de contrôle, pas un site.
+**Coût.** Environ deux jours en début de L4. Un composant de plus sur la VM du générateur, dont la RAM est à vérifier.
+**Écarté.** Garde-fous locaux seuls (contournables). GitLab (trop lourd pour 8 Go).
+**Statut.** Retenu, à réaliser en L4. Amende D-001 : un dépôt distant existe, sur la VM du générateur. Les sites n'y accèdent toujours pas.
+
+---
+
+## D-037 — AU4 = contrat d'interface + connexion au site simulé
+**Date.** 16/11/2026
+**Décision.** AU4 livre trois choses : le contrat d'interface plateforme ↔ plateforme centralisée (nommage des topics, format des messages, identifiant de corrélation, authentification, ce qui est surveillé) ; sa connexion à un site qui simule la plateforme centralisée (cadrage du 08/10) ; la relecture du contrat par l'équipe de la plateforme centralisée. La vraie connexion relève de la mise en production.
+**Raison.** Le pilote n'a pas d'accès à la vraie plateforme.
+**Dépendance externe.** Relecture par l'équipe de la plateforme centralisée, retour attendu avant le 18/12.
+**Statut.** Retenu.
+
+---
+
+## D-038 — Seuil de vulnérabilités reformulé
+**Date.** 16/11/2026
+**Décision.** « Aucune vulnérabilité critique non traitée dans les images du catalogue ; chaque exception est documentée (image, CVE, justification, date de revue). »
+**Raison.** Les images amont (Solace, APISIX) ne sont pas sous notre contrôle.
+**Statut.** Retenu.
+
+---
+
+## D-039 — Gel du générateur au début de L7 (applique D-015)
+**Date.** 16/11/2026
+**Décision.** Le 18/01/2027, le générateur est figé sur un commit propre (D-020), et son hash est inscrit au journal des mesures. Pendant L7, aucun correctif n'est fait sans nouveau hash et sans reprise des mesures concernées.
+**Statut.** Retenu.
+
+---
+
+## D-040 — Calendrier : fériés et congés
+**Date.** 16/11/2026
+**Décision.** Trois aménagements : la démo L4 est fixée au mercredi 23/12 ; le test avec la vraie équipe (AU6) a lieu la semaine du 11/01 ; les semaines du 28/12 et du 04/01 servent à AU5 et à IN4. Les dates de fin de lot sont inchangées, et le pilote reste présentable le 29/01.
+**Statut.** Retenu.
+
+---
+
+## D-041 — 4e site
+**Date.** 16/11/2026
+**Décision.** La RAM libre des hôtes est relevée avant le 07/12. Si une 4e VM de 8 Go tient, la démo ajoute un vrai site D. Sinon, elle retire C de la topologie, réinstalle la VM à neuf et l'ajoute comme site D, avec un nouvel index jamais réattribué (D-005).
+**Statut.** Retenu.
+
+---
+
+## D-042 — Contrat de site vérifié à la génération
+**Date.** 16/11/2026
+**Décision.** Ce qu'est un site est défini par un contrat écrit (`docs/10-contrat-de-site.md`), dont chaque clause renvoie à une décision ou à une étape du planning. Le générateur valide chaque package contre ce contrat à la fin de la génération : en mode rapport pendant L1, puis en mode bloquant (refus 409, clauses nommées) à la clôture de L1. Le filet de non-régression vérifie le comportement des sites déployés ; le validateur vérifie leur forme, sans site.
+**Raison.** Un site n'existe que par son package. Vérifier la forme à la génération attrape un port exposé, une image flottante ou un healthcheck manquant en quelques secondes, sans déploiement, et rend l'affirmation « identique à chaque fois » vérifiable sur chaque archive. Pendant de D-019 : D-019 est le contrat de la machine hôte, celui-ci est le contrat du site.
+**Écarté.** S'en remettre au seul filet (lent, demande les trois VM, ne voit pas ce qui marche par accident). Contrôle manuel en revue (non reproductible).
+**Statut.** Retenu.
+**Implémenté (18/11, L1 prompt 01).** Contrat v1, 28 clauses (commit `adb8fba` du dépôt de documentation). `webapp/app/validateur.js` et `validate-site.js` (commit `355afbf` du générateur) : l'archive est collectée, validée, puis émise ; `PEAAS_CONTRAT_MODE=rapport` (défaut) joint `.peaas/validation-contrat.json` et `.txt`, `bloquant` refuse en 409 en nommant les clauses. Sur les quatre packages de la topologie : 23 clauses conformes, 5 violées (F3, R4, M1, S1, S3), à corriger par IN2, RE1, FR2, SE6, et une étape à rattacher pour F3.
 
 ---
 
