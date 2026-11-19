@@ -705,3 +705,30 @@ Une VM de 8 Go est au plancher du contrat de machine d'`install.sh` (8 Go,
 tolérance 5 %) : à vérifier sur la VM elle-même (`MemTotal`) avant de
 retenir l'option « vrai site D ». Le choix entre site D et réinstallation
 de C relève de Lord (D-041, avant le 07/12).
+
+## 19/11/2026 — site vierge déployé en 248 s (seuil Industrialisation, D-032)
+
+Seuil du planning : « un site est déployé en moins de 5 min (hors images) ».
+site-p remis à vierge : `docker compose down`, dossier du site mis de côté
+(`~/peaas-site-p.avant-vierge-20261119`, conservé), réseau `peaas` supprimé.
+Images présentes (« hors images »). Filet `filet-20261119t020018z-b162ea`,
+mode complet, générateur `46ef2927f556`, catalogue `4535e007e1b9`,
+identifiants nouveaux, certificat de site réémis par la vraie autorité.
+
+**`install.sh` : 248 s, code 0**, 8 conteneurs `healthy`.
+
+| Étape | Durée |
+|---|---|
+| 0 à 4 (contexte, contrat de machine, volumes, réseau, certificats) | 1 s |
+| 5. Démarrage des composants | 58 s |
+| 6. Vérification | 1 s |
+| 7. Configuration des composants (attente de SEMP, liens DMR) | 159 s |
+| 8. Fédération DMR (constat local) | 16 s |
+| 9. Santé des conteneurs (RE1) | 13 s |
+
+Seuil tenu, avec 52 s de marge. L'étape 7 pèse les deux tiers : c'est le
+premier démarrage de Solace (création de son stockage) avant que SEMP
+réponde. Vérification des trois sites juste après
+(`filet-20261119t020433z-81110d`) : 16 ok, liens DMR A↔P et B↔P remontés
+avec le nouveau site-p, messages dans les deux sens.
+Limite : un seul essai, sur un hôte partagé par les quatre VM.

@@ -115,6 +115,13 @@ tests passe en entier, `install.test.js` compris (39/39).
   machines, coupé le 19/11. Vérification seule
   `filet-20261119t015604z-d8becd` : **16 ok, 0 échec, 0 avertissement**.
 
+- **Seuil Industrialisation tenu** : site-p remis à vierge et redéployé par
+  le filet en **248 s** (hors images, comme le seuil), 8 conteneurs `healthy`,
+  liens DMR remontés (doc 05, 19/11). L'ancien dossier du site est conservé
+  dans `~/peaas-site-p.avant-vierge-20261119`.
+- **Test d'intégration Solace** (`PEAAS_SOLACE_IT=1`, broker réel sur le
+  générateur) : vert le 19/11. Suite complète : 398 tests verts, plus celui-ci.
+
 **Reste ouvert après le 19/11** (signalé, pas tranché) :
 
 - D-028 : le code accepte un mot de passe d'un caractère
@@ -123,7 +130,6 @@ tests passe en entier, `install.test.js` compris (39/39).
 - D-016 : le code du tirage est toujours là (O4 tient tant que
   `PEAAS_PROFILE_URL_BASE` est vide).
 - Journal : D-030 et la décision du 03/11 n'ont pas d'entrée.
-- Seuil des 5 min à mesurer sur un site neuf.
 - Tests : `npm test` = 393, 365 verts, 27 rouges, 1 sauté. Les 27 rouges
   sont tous dans `install.test.js` : contrat de machine, 1,7 Go de RAM sur la
   copie Hyper-V contre 8 Go requis. Ce ne sont pas des régressions.
