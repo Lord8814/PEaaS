@@ -509,6 +509,18 @@ conteneur en boucle.
 
 ---
 
+## D-030 — Identifiants rejoués à l'installation, vérifiés pour tous
+**Date.** 21/09/2026 (incident E-09). Entrée écrite le 19/11/2026, reconstituée à partir des renvois du journal 07 et confirmée par Lord.
+**Décision.** Un identifiant du `.env` ne compte pas sur le premier démarrage de l'image pour être appliqué. Pour PostgreSQL et Grafana, `install.sh` rejoue à chaque installation la création des comptes et l'application des mots de passe. Pour tous les composants, l'installation vérifie que les identifiants du `.env` sont réellement acceptés.
+**Raison.** E-09 : les images de PostgreSQL, pgAdmin, Grafana et Solace n'appliquent leurs variables d'identifiants qu'à l'initialisation d'un répertoire de données vide. Avec des données déjà présentes, un `.env` modifié diverge en silence de l'identifiant réel, et l'échec n'apparaît qu'à la connexion (`password authentication failed`).
+**Statut.** Retenu, **non implémenté** au 19/11 :
+- `scripts/setup/postgres.sh` est rejoué à chaque installation, mais pour le schéma neutre seulement : il ne réapplique pas le mot de passe du rôle.
+- Grafana n'a pas de script de configuration rejoué.
+- `install.sh` ne vérifie les identifiants d'aucun composant.
+D-034 réduit le risque (identifiants générés à l'installation, jamais réécrits) sans le supprimer : un `.env` modifié à la main ou des données reprises d'un autre site restent possibles. À rattacher au niveau 2 d'IN1 (D-043), après M4.
+
+---
+
 ## D-031 — Hébergement du banc : réseau NAT VirtualBox sur un poste unique
 **Date.** 14/09/2026
 **Décision.** Les sites du banc sont des VM VirtualBox sur un seul poste, reliées par un **réseau NAT VirtualBox** (`MultiSite`, `192.168.90.0/24`, DHCP désactivé), adresses statiques par site (`192.168.90.11` = A, `192.168.90.12` = B). L'accès depuis la machine hôte se fait exclusivement par redirection de ports déclarée sur le réseau NAT (`127.0.0.1:2211` et `127.0.0.1:2212` vers le port 22 du site), et par tunnel SSH pour les interfaces d'administration liées à `127.0.0.1` dans l'invité (D-018). Aucune redirection n'est déclarée pour les flux inter-sites : ils circulent de VM à VM sans passer par l'hôte.

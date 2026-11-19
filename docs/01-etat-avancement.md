@@ -142,7 +142,7 @@ débogage (amendement au journal) ; D-041, pas de 4e site.
 
 - D-016 : le code du tirage est toujours là (O4 tient tant que
   `PEAAS_PROFILE_URL_BASE` est vide).
-- Journal : D-030 et la décision du 03/11 n'ont pas d'entrée.
+- Journal : la décision du 03/11 n'a pas d'entrée (D-030 écrite le 19/11, non implémentée).
 - Tests : `npm test` = 393, 365 verts, 27 rouges, 1 sauté. Les 27 rouges
   sont tous dans `install.test.js` : contrat de machine, 1,7 Go de RAM sur la
   copie Hyper-V contre 8 Go requis. Ce ne sont pas des régressions.
