@@ -690,11 +690,26 @@ La restructuration se fait par marches (M0 à M7). Une marche qui ne change pas 
 ---
 
 ## D-045 — Mise à jour d'un site existant : un profil exporté, une commande (décision du 03/11)
-**Date.** 03/11/2026. Entrée écrite le 19/11/2026, reconstituée à partir des commits `6cc8fe9` et `208e611` du générateur (messages de commit vides de sens : « e », « ttt ») et des renvois de D-016 et D-035. **À confirmer par Lord.**
+**Date.** 03/11/2026. Entrée écrite le 19/11/2026, reconstituée à partir des commits `6cc8fe9` et `208e611` du générateur (messages de commit vides de sens : « e », « ttt ») et des renvois de D-016 et D-035. **Confirmée par Lord le 19/11.**
 **Décision.** Quand la topologie change (ajout ou retrait d'un site), un site déjà installé n'est ni régénéré ni réinstallé : on exporte son nouveau profil depuis le générateur (`webapp/exporter-profils.sh`, qui produit exactement le `site-profile.yaml` qu'une archive neuve contiendrait), on le copie sur le site, puis on lance `./update-site.sh --profil <fichier>` (aperçu avec `--a-blanc`). Le script refuse un profil d'un autre site ou une identité de site modifiée (code 4), sauvegarde l'ancien profil, rejoue la configuration de Solace et constate la fédération, et restaure l'ancien profil en cas d'échec.
 **Raison.** Aucune source à joindre depuis les sites, aucun port supplémentaire sur le générateur, aucune planification sur les sites : une commande par site existant, lancée par l'opérateur. C'est la voie retenue par D-035.
 **Écarté.** Le tirage du profil par le site (D-016) : `update-site.sh --url`, `--planifier` (timer systemd ou crontab), second serveur de profils sur le port 3002, `.peaas/update.conf` dans l'archive. Codé dans le même commit `6cc8fe9`, il n'a jamais servi sur le banc ; il est retiré du code par IN1 M6 (A5 de D-043).
 **Statut.** Retenu, implémenté (`update-site.sh --profil`, `exporter-profils.sh`). Tirage retiré le 19/11 (IN1 M6). La clause O4 du contrat de site reste : aucune archive ne porte de source de tirage.
+
+---
+
+## D-046 — Graphe hybride sur le banc : choix de mise en œuvre
+**Date.** 19/11/2026
+**Décision.** Mise en œuvre de D-044 (plan : `docs/14-graphe-hybride.md`) :
+- Le générateur reste dans sa VM. « Plateforme centrale » désigne aussi l'équipe qui tient le catalogue et la génération ; sur le banc, le nœud central (broker, observation) est site-p.
+- Le centre garde les composants du socle sauf Node-RED (métier) et ne reçoit aucun cas d'usage : le générateur refuse `nodered1` et `cas_usage` pour lui.
+- `topology.yaml` porte `federation.centre` et `liens_accordes: [{ demandeur, pair }]`. Chaque site ouvre son lien central ; le demandeur ouvre le lien direct. `dmr_link_initiator` est retiré.
+- Un lien absent du profil est supprimé du broker au rejeu de `solace-dmr.sh` (avec son pont DMR).
+- Accorder ou retirer un lien : profil exporté puis `update-site.sh --profil` (D-045).
+- Trois blocs dans cet ordre : graphe, plan de contrôle minimal (état, sonde), cloisonnement (sorties fermées, miroir, module d'accès Internet).
+**Raison.** Réponses de Lord du 19/11 aux six questions posées avant le lancement.
+**Écarté.** Déplacer le générateur sur site-p (chantier séparé, et D-006 garde la clé de la CA hors de la machine exposée).
+**Statut.** Retenu. Arbitrages B1 à B5 du plan (doc 14, section 6) ouverts. Certificats 90 jours et révocation : lot suivant.
 
 ---
 
