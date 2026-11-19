@@ -30,7 +30,8 @@ D-031 du 22/09 :
   `remoteAddress` DMR.
 
 Système : Debian 13 (image cloud officielle `debian-13-generic-amd64`, SHA-512
-vérifié), Docker 29 et compose v5, synchronisation NTP. Un seul utilisateur,
+vérifié), Docker 29 et compose v5, synchronisation NTP, LLMNR et mDNS coupés
+(SE6, 19/11 : seul SSH écoute hors des flux inter-sites). Un seul utilisateur,
 `lord` : connexion par clé uniquement, `sudo` sans mot de passe (banc). Aucune
 entrée vers un pair dans `/etc/hosts`. Le site est installé dans
 `~/peaas-<site>/`.

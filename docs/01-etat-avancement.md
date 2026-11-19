@@ -109,6 +109,12 @@ tests passe en entier, `install.test.js` compris (39/39).
   passent sous le seuil des 5 min ; la mesure du seuil sur un site neuf
   (premier téléchargement compris) reste à faire (D-032).
 
+- **Exposition réelle (SE6)** : le filet lit maintenant, sur chaque site, les
+  ports publiés par les conteneurs et les sockets en écoute de la machine
+  (point « exposition »). Premier constat : 5355 (LLMNR) ouvert sur les trois
+  machines, coupé le 19/11. Vérification seule
+  `filet-20261119t015604z-d8becd` : **16 ok, 0 échec, 0 avertissement**.
+
 **Reste ouvert après le 19/11** (signalé, pas tranché) :
 
 - D-028 : le code accepte un mot de passe d'un caractère

@@ -174,7 +174,17 @@ $clesYaml
 ssh_pwauth: false
 package_update: true
 packages: [ca-certificates, curl, systemd-timesyncd, jq]
+# SE6 (19/11/2026) : LLMNR coupé. systemd-resolved l'écoute sur 5355, toutes
+# interfaces, y compris celle de la topologie ; aucun usage sur le banc
+# (noms d'administration servis par le Default Switch, aucun nom de pair).
+write_files:
+  - path: /etc/systemd/resolved.conf.d/peaas-se6.conf
+    content: |
+      [Resolve]
+      LLMNR=no
+      MulticastDNS=no
 runcmd:
+  - [systemctl, restart, systemd-resolved]
   - [sh, -c, "curl -fsSL https://get.docker.com | sh"]
   - [usermod, -aG, docker, lord]
   - [timedatectl, set-ntp, "true"]
