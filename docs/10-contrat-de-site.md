@@ -66,7 +66,7 @@ Ce qui varie d'un site à l'autre se limite à `site-profile.yaml`, `.env` et
 | **I3** | `certs/` contient exactement `site.key.pem` (0600), `site.crt.pem` et `federation-ca.crt.pem`. | noms et mode | D-006 | conforme |
 | **I4** | L'archive contient une seule clé privée : celle du site. Jamais la clé de l'autorité, jamais celle d'un autre site. La clé correspond au certificat du site. | recherche de tout bloc `PRIVATE KEY` dans toutes les entrées ; comparaison des clés publiques | D-006 | conforme |
 | **I5** | Le certificat du site est signé par l'autorité livrée dans `certs/`, n'est pas expiré, et ses SAN portent le nom de nœud DMR du site et son adresse déclarée. | lecture X.509 | D-006, D-013 | conforme |
-| **I6** | Chaque service du compose porte le label `peaas.site`. Le réseau `peaas` le porte aussi : dans le compose, ou à sa création par `install.sh`. | compose ; à défaut, `docker network create … --label peaas.site=` dans `install.sh` | D-019 | conforme (réseau : par `install.sh`) |
+| **I6** | Chaque service du compose porte le label `peaas.site`. Le réseau `peaas` le porte aussi : dans le compose, ou à sa création par `install.sh`. | compose ; à défaut, `docker network create … --label peaas.site=` dans `install.sh` ou ses phases (`scripts/install/`, depuis IN1 M4) | D-019 | conforme (réseau : par `scripts/install/1-infra.sh`) |
 
 ## 3. Réseau
 
@@ -152,7 +152,7 @@ s'en chargent.
 | **T1** | `.peaas/generator-version` est présent, de la forme `generator=<hash> catalogue=<hash>`, sans suffixe `-dirty`. | contenu | D-015, D-020 | conforme |
 | **T2** | `.peaas/start-order` est présent et liste exactement les services du compose, une fois chacun. | contenu comparé au compose | D-007 | conforme |
 | **T3** | `.peaas/setup-scripts` est présent ; chaque ligne `<composant><TAB><script>` nomme un service du compose et un script présent dans l'archive. `scripts/setup/lib/env.sh` est présent. | contenu comparé aux entrées | D-010 | conforme |
-| **T4** | `install.sh` et `update-site.sh` sont présents et exécutables. | noms et modes | D-007, D-035 | conforme |
+| **T4** | `install.sh` et `update-site.sh` sont présents et exécutables ; chaque phase que `install.sh` source (`. scripts/install/<phase>.sh`, IN1 M4) est dans l'archive. | noms, modes, lignes `. scripts/install/…` d'`install.sh` | D-007, D-035, D-043 | conforme |
 
 Limite connue de T3 : le générateur n'écrit `.peaas/setup-scripts` que si un
 composant retenu a un script de configuration. Un package de site sans aucun

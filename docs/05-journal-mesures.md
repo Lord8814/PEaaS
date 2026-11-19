@@ -733,6 +733,54 @@ réponde. Vérification des trois sites juste après
 avec le nouveau site-p, messages dans les deux sens.
 Limite : un seul essai, sur un hôte partagé par les quatre VM.
 
+## 19/11/2026 — site vierge remesuré après IN1 M4 : 259 s
+
+Seuil : « un site est déployé en moins de 5 min (hors images) », remesuré
+parce que M4 réécrit `install.sh` (orchestrateur + `scripts/install/`).
+Même méthode que la mesure à 248 s : site-p remis à vierge (`docker compose
+down`, dossier mis de côté dans `~/peaas-site-p.avant-vierge-m4-20261119`,
+réseau `peaas` supprimé), images présentes, filet complet.
+
+**Premier essai : échec, étape 7, pgAdmin** (`filet-20261119t151817z-3da7fd`).
+`pgadmin.sh` lance `load-servers` dès que le conteneur est `running` ;
+sa santé n'est attendue qu'à l'étape 9. Au premier démarrage, pgAdmin créait
+encore `pgadmin4.db` : « Database migration failed », « attempt to write a
+readonly database ». Course antérieure à M4 (passée par chance le 19/11 à
+02 h). Rejeu seul du script : 3 serveurs chargés. Correction au catalogue
+(`4f9076e`, puis `961a44e`) : attente bornée de `/misc/ping` avant
+`load-servers` (`PEAAS_PGADMIN_ATTENTE`, 180 s, D-029).
+
+**Second essai : `install.sh` 259 s, code 0** (`filet-20261119t153007z-d65b80`,
+générateur `09127d8`, catalogue `4f9076e`). Aucune erreur dans les journaux
+de pgAdmin.
+
+| Étape | Durée |
+|---|---|
+| 0 à 4 | 1 s |
+| 5. Démarrage des composants | 58 s |
+| 6. Vérification | 1 s |
+| 7. Configuration des composants | 186 s |
+| 8. Fédération DMR (constat local) | 12 s |
+| 9. Santé des conteneurs | 1 s |
+
+Seuil tenu, 41 s de marge (248 s avant M4 : l'étape 7 prend 27 s de plus,
+dont l'attente de pgAdmin). Limite : un seul essai.
+
+**Anomalie ouverte : aucun message n'entre dans le site-p recréé.** Filets
+`filet-20261119t153542z-e44da2` et `filet-20261119t154134z-785a59` : liens DMR
+`up` des deux côtés, messages site-p → site-a et site-p → site-b reçus,
+site-a → site-p et site-b → site-p jamais reçus (7 à 8 publications en 30 s).
+Constats :
+- MQTT local sur site-p : publication et réception sur le même site, reçu.
+- Configuration DMR (cluster, liens, canaux, VPN) identique entre site-a et
+  site-p, à l'initiateur près (règle D-026, attendu).
+- Service `solace` du compose identique à celui de la mesure à 248 s
+  (catalogue `4535e00`) : ni M3 ni M4 ne changent ce que reçoit le broker.
+- Désactivation puis réactivation du lien vers site-p sur site-a : aucun effet.
+Historique propre à cet essai : le broker de site-p a été recréé pendant que
+site-a et site-b, dont la génération était refusée (clause O1, commentaire
+de `pgadmin.sh`, corrigé dans `961a44e`), tournaient encore. Cause non établie.
+
 ## 19/11/2026 — panne de composant récupérée seule (seuil Résilience)
 
 Seuil du planning : « panne de composant récupérée seule en moins de

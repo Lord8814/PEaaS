@@ -103,6 +103,15 @@ de restructuration pure ne change rien à ce qui part vers les sites.
 | M6 | Retrait du tirage D-016 (`--url`, `--planifier`, port 3002, `update.conf`) | `update-site.sh` allégé | `update-site.test.js` + clause O4 |
 | M7 | Routes de démo (`/api/test/*`) sorties du serveur | — | `server.test.js` |
 
+**Avancement (19/11).** M0 `a411459`, M1-M2 `43ccabb`, M3 `e90ac5c` /
+`8584810` : filet complet 25/25. M4 `3e17bcb` : sortie et codes de sortie
+identiques à M3 sur les 43 scénarios d'`install.test.js` (comparaison ligne à
+ligne), 419 tests verts, filet complet 25/25 sur les sites en place, site
+vierge 259 s. Les phases sont **sourcées** par `install.sh`, pas lancées : les
+étapes du socle s'intercalent entre celles de l'infrastructure (certificats
+avant le démarrage). `3-cas-usage.sh` arrive avec M5. Ouvert : messages
+entrants du site-p recréé (doc 05, 19/11).
+
 M1 à M3 ne touchent pas les sites. M4 est la seule marche risquée, parce qu'elle
 réécrit le script lancé sur les machines : c'est là que le filet sert.
 
