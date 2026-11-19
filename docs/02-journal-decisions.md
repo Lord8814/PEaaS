@@ -468,6 +468,12 @@ cite la liste blanche, pas le caractère fautif, qui appartient à la valeur.
 - *Coût.* L'alphabet réduit (62 symboles) est racheté par la longueur :
   24 × log2 62 ≈ 143 bits.
 
+**Amendé (19/11, Lord) — longueur minimale gardée à 1 pendant le pilote.** Le
+code accepte un mot de passe d'un caractère (`LONGUEUR_MIN_MOTDEPASSE = 1`,
+commit `9cd5129` du 22/09) : c'est voulu, pour le débogage. La liste blanche
+`[A-Za-z0-9]` reste. Le plancher de 24 caractères n'est pas appliqué tant
+que ce choix n'est pas levé ; à rétablir avant tout site hors du banc.
+
 ---
 
 ## D-029 — Démarrage validé sur la stabilité, pas sur l'instant
@@ -611,7 +617,7 @@ conteneur en boucle.
 ## D-041 — 4e site
 **Date.** 16/11/2026
 **Décision.** La RAM libre des hôtes est relevée avant le 07/12. Si une 4e VM de 8 Go tient, la démo ajoute un vrai site D. Sinon, elle retire C de la topologie, réinstalle la VM à neuf et l'ajoute comme site D, avec un nouvel index jamais réattribué (D-005).
-**Statut.** Retenu.
+**Statut.** Abandonné (Lord, 19/11) : pas de 4e site. La démo reste à trois sites.
 
 ---
 

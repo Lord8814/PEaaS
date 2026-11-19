@@ -135,11 +135,11 @@ tests passe en entier, `install.test.js` compris (39/39).
   Constat : SEMP lit encore le lien `up` pendant la coupure ; seul le
   message prouve la fédération (à retenir pour OP4).
 
+**Tranché le 19/11 par Lord** : D-028, longueur minimale gardée à 1 pour le
+débogage (amendement au journal) ; D-041, pas de 4e site.
+
 **Reste ouvert après le 19/11** (signalé, pas tranché) :
 
-- D-028 : le code accepte un mot de passe d'un caractère
-  (`LONGUEUR_MIN_MOTDEPASSE = 1`, commit `9cd5129` du 22/09) ; le journal en
-  exige 24.
 - D-016 : le code du tirage est toujours là (O4 tient tant que
   `PEAAS_PROFILE_URL_BASE` est vide).
 - Journal : D-030 et la décision du 03/11 n'ont pas d'entrée.
