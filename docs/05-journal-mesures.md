@@ -757,3 +757,22 @@ sites juste après (`filet-20261119t020845z-e7982e`) : 16 ok, liens DMR de
 site-b remontés, messages dans les deux sens.
 Limites : une panne par service, un seul site, un seul essai. La panne d'un
 lien et celle d'une VM (RE6) restent à jouer.
+
+## 19/11/2026 — panne d'une VM de site : les autres continuent, retour seul
+
+Seuil du planning : « la panne d'un site n'affecte pas les autres ».
+VM `PEaaS-site-p` coupée net (`Stop-VM -TurnOff`, équivalent d'une coupure
+de courant), 19/11 03:10.
+
+- Pendant la coupure : filet sur site-a et site-b
+  (`filet-20261119t021006z-416543`) : **9 ok, 0 échec**. Lien DMR A↔B actif,
+  message reçu dans les deux sens, conteneurs `healthy`.
+- Remise sous tension (`Start-VM`), puis filet complet rejoué toutes les
+  ~15 s : **16 ok, 0 échec 317 s après le démarrage de la VM**, sans aucune
+  intervention (démarrage de Debian et de Docker, conteneurs relancés par
+  `restart: unless-stopped`, premier démarrage de Solace, liens DMR
+  remontés). La granularité de la mesure est celle d'un passage du filet
+  (environ une minute).
+
+Limites : un seul essai, VM du même hôte. La restauration d'un site depuis
+son package et sa sauvegarde (seuil de 15 min, RE4/RE5) n'est pas couverte.

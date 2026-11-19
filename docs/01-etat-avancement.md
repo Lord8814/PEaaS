@@ -126,6 +126,10 @@ tests passe en entier, `install.test.js` compris (39/39).
   site-b, retour à `healthy` seul en 6 à 67 s (Solace), sous les 2 min ;
   fédération intacte ensuite (doc 05, `docs/banc/panne-composant.sh`).
 
+- **Panne d'un site** : VM de site-p coupée net, A↔B intact pendant la
+  coupure (9 ok) ; au rallumage, retour au vert des trois sites en 317 s sans
+  intervention (doc 05).
+
 **Reste ouvert après le 19/11** (signalé, pas tranché) :
 
 - D-028 : le code accepte un mot de passe d'un caractère
