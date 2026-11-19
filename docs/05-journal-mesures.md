@@ -689,3 +689,19 @@ comprise :
 Sous le seuil des 5 min (300 s) dans ce cas. Ne vaut pas mesure sur un site
 neuf : le 18/11, le premier téléchargement des images portait la durée à
 520-580 s.
+
+## 19/11/2026 — RAM libre de l'hôte du banc, pour un 4e site (D-041)
+
+Pc-fixe (Windows 11, Hyper-V), les quatre VM démarrées, mémoire statique :
+générateur 8 Go, site-a, site-b et site-p 10 Go chacun (38 Go en tout).
+RAM totale 63,9 Go, **libre 12,7 Go**.
+
+| 4e VM | Reste à l'hôte | Lecture |
+|---|---|---|
+| 8 Go (seuil de D-041) | 4,7 Go | tient |
+| 10 Go (comme les trois sites) | 2,7 Go | trop juste pour Windows |
+
+Une VM de 8 Go est au plancher du contrat de machine d'`install.sh` (8 Go,
+tolérance 5 %) : à vérifier sur la VM elle-même (`MemTotal`) avant de
+retenir l'option « vrai site D ». Le choix entre site D et réinstallation
+de C relève de Lord (D-041, avant le 07/12).
