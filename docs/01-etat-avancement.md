@@ -130,6 +130,11 @@ tests passe en entier, `install.test.js` compris (39/39).
   coupure (9 ok) ; au rallumage, retour au vert des trois sites en 317 s sans
   intervention (doc 05).
 
+- **Coupure d'un lien** (carte de topologie de site-p débranchée) : A↔B
+  intact, messages vers P perdus ; tout revient en 95 s au rebranchement.
+  Constat : SEMP lit encore le lien `up` pendant la coupure ; seul le
+  message prouve la fédération (à retenir pour OP4).
+
 **Reste ouvert après le 19/11** (signalé, pas tranché) :
 
 - D-028 : le code accepte un mot de passe d'un caractère

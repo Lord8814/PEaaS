@@ -776,3 +776,18 @@ de courant), 19/11 03:10.
 
 Limites : un seul essai, VM du même hôte. La restauration d'un site depuis
 son package et sa sauvegarde (seuil de 15 min, RE4/RE5) n'est pas couverte.
+
+## 19/11/2026 — coupure du lien d'un site (réseau de topologie)
+
+Carte `topologie` de `PEaaS-site-p` débranchée du commutateur `MultiSite`
+(`Disconnect-VMNetworkAdapter`), le réseau d'administration restant joignable.
+
+- Pendant la coupure (`filet-20261119t021609z-12c5ea`) : A↔B intact (lien et
+  messages) ; messages A↔P et B↔P **perdus**, comme attendu. **14 ok, 2 échecs.**
+- **Constat** : les trois liens DMR restaient lus `up` par SEMP, y compris
+  ceux vers site-p, alors qu'aucun message ne passait. L'état SEMP du lien
+  retarde sur la coupure réelle (TCP non encore tombé). Le point « lien DMR »
+  du filet ne suffit donc pas à prouver la fédération : c'est le point
+  « message » qui fait foi. À retenir pour l'alerte sur panne (OP4, L3).
+- Rebranchement : filet complet **16 ok, 0 échec 95 s après**, sans
+  intervention (granularité : un passage du filet, environ une minute).
