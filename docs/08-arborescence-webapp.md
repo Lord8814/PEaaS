@@ -86,6 +86,14 @@ Serveur Express : sert `public/` et expose l'API.
 | `DELETE` | `/api/topology/sites/:id`    | Retire un site (son index reste réservé) |
 | `POST`   | `/api/compose`               | Aperçu du `docker-compose.yaml` généré |
 | `POST`   | `/api/package`               | Construit l'archive `peaas-<site>.tar.gz` |
+
+Routes de démonstration, dans `app/demo.js` (IN1 M7, A6), montées seulement si
+`PEAAS_DEMO=1` (désactivées par défaut ; sinon 404, et l'interface masque
+l'onglet « Tests & demo ») :
+
+| Méthode  | Route                        | Rôle |
+|----------|------------------------------|------|
+| `GET`    | `/api/demo`                  | `{ actif: true }` : le module est monté |
 | `GET`    | `/api/health`                | État des composants (via APISIX) |
 | `POST`   | `/api/test/loadbalancing`    | Test de démonstration via APISIX |
 | `POST`   | `/api/test/database`         | Test de démonstration de la chaîne BDD |

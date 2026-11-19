@@ -135,6 +135,16 @@ en bout ; garde que le tirage ne revient pas). Dans l'archive, seul
 (`filet-20261119t170245z-52e5f3`) ; sur le banc, `exporter-profils.sh` puis
 `update-site.sh --profil` sur site-p : à jour, `--url` refusé, port 3002 fermé.
 
+M7 (19/11) : `/api/health`, `/api/test/loadbalancing` et `/api/test/database`
+sortent de `server.js` vers `demo.js` (routeur Express), avec `GET /api/demo`.
+Montées seulement si `PEAAS_DEMO=1` (compose : `0` par défaut) ; toute autre
+valeur que 0, 1 ou vide arrête le démarrage. Désactivées : 404, et l'interface
+masque l'onglet « Tests & demo ». `/api/health` suit les routes `/api/test/*` :
+même section, même onglet, mêmes cibles (APISIX, Node-RED du socle mono-VM).
+Archive inchangée (référence M0 identique). 458 tests verts (10 nouveaux),
+1 sauté. Filet complet 25/25 (`filet-20261119t172742z-4b9591`). **IN1 terminé
+(M0 à M7).**
+
 M1 à M3 ne touchent pas les sites. M4 est la seule marche risquée, parce qu'elle
 réécrit le script lancé sur les machines : c'est là que le filet sert.
 

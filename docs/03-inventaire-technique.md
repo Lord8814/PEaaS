@@ -516,8 +516,8 @@ un instant) — se referme dès `docker compose restart webapp`.
 | `POST /api/topology/sites` | Ajoute un site (index attribué par le serveur, D-005) | **oui** — `topology.yaml` + commit Git |
 | `PATCH /api/topology/sites/:id` | Modifie `host_address` / `host_cidr` / `dmr_node_name` | **oui** — idem |
 | `DELETE /api/topology/sites/:id` | Retire un site de `sites:` (`index_history` intact) | **oui** — idem |
-| `GET /api/health` | État des composants joignables depuis le réseau `peaas` | non |
-| `POST /api/test/loadbalancing`, `POST /api/test/database` | Tests de démonstration hérités du socle mono-VM | non |
+| `GET /api/demo`, `GET /api/health` | Démonstration (`demo.js`, seulement si `PEAAS_DEMO=1`, IN1 M7) : module monté, état des composants joignables depuis le réseau `peaas` | non |
+| `POST /api/test/loadbalancing`, `POST /api/test/database` | Démonstration (`demo.js`, seulement si `PEAAS_DEMO=1`) : tests hérités du socle mono-VM | non |
 
 Les trois routes qui écrivent sont la **seule** exception à `/mnt` monté en
 lecture seule (D-022) : portée volontairement étroite, dépôt propre exigé avant
