@@ -732,3 +732,28 @@ réponde. Vérification des trois sites juste après
 (`filet-20261119t020433z-81110d`) : 16 ok, liens DMR A↔P et B↔P remontés
 avec le nouveau site-p, messages dans les deux sens.
 Limite : un seul essai, sur un hôte partagé par les quatre VM.
+
+## 19/11/2026 — panne de composant récupérée seule (seuil Résilience)
+
+Seuil du planning : « panne de composant récupérée seule en moins de
+2 min ». site-b, `docs/banc/panne-composant.sh` : `kill -9` du processus
+principal de chaque conteneur, l'un après l'autre, puis chrono jusqu'à
+`running` + `healthy` (RestartCount augmenté). Aucune intervention : seule la
+politique de redémarrage agit (RE1, catalogue `4535e00`).
+
+| Service | Retour à `healthy` |
+|---|---|
+| apisix | 6 s |
+| postgres | 6 s |
+| etcd | 7 s |
+| prometheus | 6 s |
+| grafana | 11 s |
+| pgadmin | 32 s |
+| nodered1 | 6 s |
+| solace | 67 s |
+
+**8 sur 8 sous 2 min** (pire cas : Solace, 67 s). Vérification des trois
+sites juste après (`filet-20261119t020845z-e7982e`) : 16 ok, liens DMR de
+site-b remontés, messages dans les deux sens.
+Limites : une panne par service, un seul site, un seul essai. La panne d'un
+lien et celle d'une VM (RE6) restent à jouer.

@@ -122,6 +122,10 @@ tests passe en entier, `install.test.js` compris (39/39).
 - **Test d'intégration Solace** (`PEAAS_SOLACE_IT=1`, broker réel sur le
   générateur) : vert le 19/11. Suite complète : 398 tests verts, plus celui-ci.
 
+- **Seuil Résilience (composant)** : `kill -9` de chacun des 8 services de
+  site-b, retour à `healthy` seul en 6 à 67 s (Solace), sous les 2 min ;
+  fédération intacte ensuite (doc 05, `docs/banc/panne-composant.sh`).
+
 **Reste ouvert après le 19/11** (signalé, pas tranché) :
 
 - D-028 : le code accepte un mot de passe d'un caractère
