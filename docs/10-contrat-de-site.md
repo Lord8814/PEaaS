@@ -139,7 +139,7 @@ Chaque site traite les autres comme distants.
 | **O1** | Aucune adresse ni aucun nom de pair hors de `site-profile.yaml`. | recherche de chaque `host_address`, `id` et `dmr_node_name` de `peers` dans toutes les autres entrées texte | règle d'isolation, D-012 | conforme |
 | **O2** | Aucun `extra_hosts`, `links` ni `external_links` dans le compose. | compose | règle d'isolation, D-031 | conforme |
 | **O3** | Aucun volume hors du dossier du site : chaque source de volume est un chemin relatif `./…` sans `..`. Pas de chemin absolu, pas de volume nommé, pas de socket Docker. | section `volumes` de chaque service | D-009 | conforme |
-| **O4** | Le package ne porte aucune source de tirage vers le plan de contrôle : pas de `.peaas/update.conf`. | noms des entrées | D-035 (D-016 remplacé) | conforme (tant que `PEAAS_PROFILE_URL_BASE` est vide sur le générateur) |
+| **O4** | Le package ne porte aucune source de tirage vers le plan de contrôle : pas de `.peaas/update.conf`. | noms des entrées | D-035 (D-016 remplacé) | conforme (le générateur n'émet plus ce fichier depuis IN1 M6 ; la clause garde qu'il ne revienne pas) |
 
 Non vérifiable sur l'archive, donc hors contrat : l'absence d'entrée `hosts`
 vers un pair sur la machine, et l'horloge (D-017). `install.sh` et le filet

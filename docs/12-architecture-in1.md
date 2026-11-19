@@ -29,7 +29,7 @@ fonction ne change.
 | Routes `/api/test/loadbalancing`, `/api/test/database` | démo | `server.js` + `public/app.js` | De la démonstration dans le serveur de production. |
 | Étapes 1, 2, 3, 5, 6, 9 | 1 | `install.sh` (805 lignes) | Entrelacées avec le niveau 2 dans un seul script. |
 | Étapes 4 (certs), 7 (setup), 8 (DMR) | 2 | `install.sh` | idem |
-| Tirage du profil (`--url`, `--planifier`, `update.conf`) | 2 | `update-site.sh`, `server.js` | D-016, remplacé par D-035 : à retirer. |
+| Tirage du profil (`--url`, `--planifier`, `update.conf`) | 2 | `update-site.sh`, `server.js` | D-016, remplacé par D-035 : retiré par M6 (19/11). |
 | Cas d'usage | 3 | **nulle part** | `nodered1/flows.json` est vide (`[]`), comme le veut D-010. Rien n'empile un cas d'usage. |
 
 **Frontière générateur / `install.sh`.** Aujourd'hui, le générateur écrit les
@@ -122,6 +122,18 @@ génération (400). Un script en échec ou hors délai arrête l'installation
 (code 6). 453 tests verts (34 nouveaux) ; référence M0 réécrite (seuls
 changent `install.sh`, `.peaas/cas-usage` et `scripts/install/3-cas-usage.sh`). Filet complet
 25/25 (`filet-20261119t163817z-b39131`).
+
+M6 (19/11) : entrée D-045 au journal (décision du 03/11, reconstituée à partir
+des commits `6cc8fe9` et `208e611`, à confirmer par Lord), puis retrait du
+tirage. `update-site.sh` ne prend plus que `--profil FICHIER` (et `--a-blanc`) :
+plus de `--url`, `--planifier`, `--deplanifier`, `PEAAS_PROFILE_URL`, ni de
+code 3. Le générateur n'a plus de second serveur de profils, n'écrit plus
+`.peaas/update.conf` et ne publie plus le port 3002. `profils-public.test.js`
+devient `update-site-archive.test.js` (profil exporté puis `--profil`, de bout
+en bout ; garde que le tirage ne revient pas). Dans l'archive, seul
+`update-site.sh` change. 448 tests verts, 1 sauté. Filet complet 25/25
+(`filet-20261119t170245z-52e5f3`) ; sur le banc, `exporter-profils.sh` puis
+`update-site.sh --profil` sur site-p : à jour, `--url` refusé, port 3002 fermé.
 
 M1 à M3 ne touchent pas les sites. M4 est la seule marche risquée, parce qu'elle
 réécrit le script lancé sur les machines : c'est là que le filet sert.

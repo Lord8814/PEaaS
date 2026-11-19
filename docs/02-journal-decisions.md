@@ -209,7 +209,7 @@ et sort en 0.
 **Décision.** Un site déjà déployé récupère périodiquement sa configuration à jour dans le dépôt, plutôt qu'un déclenchement réseau ou un push depuis l'interface.
 **Raison.** Aucun port entrant supplémentaire, compatible avec des sites non joignables en entrée.
 **Point de tension.** Dépendance d'exécution non bloquante au plan de contrôle (voir section 9.2) ; nature de ce qui est récupéré (profil produit ou topologie) encore ouverte (section 14).
-**Statut.** ~~Retenu, non implémenté.~~ **Remplacé par D-035 (16/11/2026)** pour le pilote : plus de pull périodique ; une commande par site existant (`update-site.sh --profil`). Reporté en phase 2. Le tirage implémenté le 03/11 (`--url`, `--planifier`, second port) reste à retirer du code.
+**Statut.** ~~Retenu, non implémenté.~~ **Remplacé par D-035 (16/11/2026)** pour le pilote : plus de pull périodique ; une commande par site existant (`update-site.sh --profil`). Reporté en phase 2. Le tirage implémenté le 03/11 (`--url`, `--planifier`, second port) est retiré du code le 19/11 (IN1 M6, voir D-045).
 
 ---
 
@@ -581,7 +581,7 @@ D-034 réduit le risque (identifiants générés à l'installation, jamais réé
 **Raison.** Le pull suppose une source joignable depuis les trois sites, donc un dépôt distant, ce que D-001 exclut. La décision du 03/11 tranche déjà pour la simplicité.
 **Écarté.** Pull depuis la forge : cela ajoute une dépendance d'exécution au plan de contrôle. Reporté en phase 2.
 **Statut.** Retenu. D-016 passe à « Remplacé ».
-**Écart constaté (18/11).** La décision du 03/11 n'a pas d'entrée dans ce journal : elle n'existe que par les commits `6cc8fe9` et `208e611` du générateur. Ces commits implémentent aussi le tirage de D-016 (`update-site.sh --url`, `--planifier`, second port 3002, `.peaas/update.conf`), encore présent dans le code. Le retirer est hors du prompt 01 ; la clause O4 du contrat de site (D-042) garde qu'aucune archive ne porte de source de tirage.
+**Écart constaté (18/11).** La décision du 03/11 n'a pas d'entrée dans ce journal : elle n'existe que par les commits `6cc8fe9` et `208e611` du générateur. Ces commits implémentent aussi le tirage de D-016 (`update-site.sh --url`, `--planifier`, second port 3002, `.peaas/update.conf`), encore présent dans le code. Le retirer est hors du prompt 01 ; la clause O4 du contrat de site (D-042) garde qu'aucune archive ne porte de source de tirage. **Résolu le 19/11** : entrée D-045 (reconstituée, à confirmer par Lord), tirage retiré par IN1 M6.
 
 ---
 
@@ -686,6 +686,15 @@ La restructuration se fait par marches (M0 à M7). Une marche qui ne change pas 
 - D-006 : la CA reste hors de la machine exposée.
 - Contrat de site, clauses R.
 **Statut.** Retenu (Lord, 19/11). À coder après IN1 M0-M3.
+
+---
+
+## D-045 — Mise à jour d'un site existant : un profil exporté, une commande (décision du 03/11)
+**Date.** 03/11/2026. Entrée écrite le 19/11/2026, reconstituée à partir des commits `6cc8fe9` et `208e611` du générateur (messages de commit vides de sens : « e », « ttt ») et des renvois de D-016 et D-035. **À confirmer par Lord.**
+**Décision.** Quand la topologie change (ajout ou retrait d'un site), un site déjà installé n'est ni régénéré ni réinstallé : on exporte son nouveau profil depuis le générateur (`webapp/exporter-profils.sh`, qui produit exactement le `site-profile.yaml` qu'une archive neuve contiendrait), on le copie sur le site, puis on lance `./update-site.sh --profil <fichier>` (aperçu avec `--a-blanc`). Le script refuse un profil d'un autre site ou une identité de site modifiée (code 4), sauvegarde l'ancien profil, rejoue la configuration de Solace et constate la fédération, et restaure l'ancien profil en cas d'échec.
+**Raison.** Aucune source à joindre depuis les sites, aucun port supplémentaire sur le générateur, aucune planification sur les sites : une commande par site existant, lancée par l'opérateur. C'est la voie retenue par D-035.
+**Écarté.** Le tirage du profil par le site (D-016) : `update-site.sh --url`, `--planifier` (timer systemd ou crontab), second serveur de profils sur le port 3002, `.peaas/update.conf` dans l'archive. Codé dans le même commit `6cc8fe9`, il n'a jamais servi sur le banc ; il est retiré du code par IN1 M6 (A5 de D-043).
+**Statut.** Retenu, implémenté (`update-site.sh --profil`, `exporter-profils.sh`). Tirage retiré le 19/11 (IN1 M6). La clause O4 du contrat de site reste : aucune archive ne porte de source de tirage.
 
 ---
 
