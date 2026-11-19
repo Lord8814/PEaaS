@@ -625,6 +625,52 @@ conteneur en boucle.
 
 ---
 
+## D-043 — Structure du générateur en trois niveaux (IN1)
+**Date.** 19/11/2026
+**Décision.** Le générateur, le catalogue et l'installation sont découpés selon les trois niveaux du cadrage (§ 5.2) : infrastructure, socle, cas d'usage. Proposition complète : `docs/12-architecture-in1.md`. Arbitrages :
+- A1 : chaque produit garde un seul bloc `compose` ; ce que le multisite y ajoute va dans une section `socle:` du même `produit.yaml`, ce qui supprime `compose_multisite`.
+- A2 : le générateur fusionne les deux blocs, et l'archive ne porte qu'un compose.
+- A3 : l'archive sans site (`peaas-package`) est gardée, au niveau 1 seul.
+- A4 : IN1 crée l'emplacement des cas d'usage, sans contenu métier.
+- A5 : le tirage D-016 est retiré dans IN1, après l'entrée au journal de la décision du 03/11.
+- A6 : les routes `/api/test/*` sortent dans un module de démonstration, activé par une variable d'environnement.
+- A7 : F3 est rattachée à SE6.
+La restructuration se fait par marches (M0 à M7). Une marche qui ne change pas le comportement doit produire une archive identique, fichier par fichier, à l'archive de référence.
+**Raison.** Les niveaux 1 et 2 sont mêlés dans `produit.yaml` (service écrit deux fois), dans `server.js` (route de 250 lignes testable seulement par HTTP) et dans `install.sh`. Le niveau 3 n'a aucun emplacement. Le graphe hybride (D-044) est un changement du seul niveau 2 : il faut d'abord l'isoler.
+**Écarté.** Une réécriture d'un seul tenant (D-032).
+**Statut.** Retenu (Lord, 19/11). En cours.
+
+---
+
+## D-044 — Plateforme centrale et graphe hybride
+**Date.** 19/11/2026
+**Décision.** Le maillage complet est remplacé par un graphe hybride. Proposition complète : `docs/13-plateforme-centrale.md`.
+- Chaque site a un lien obligatoire avec la plateforme centrale.
+- Les liens directs entre sites n'existent que si la plateforme centrale les accorde. Elle seule décide, à la génération (modules, fichiers de mise à jour) ou à la demande.
+- Le site ouvre chaque lien ; le pair l'accepte selon le certificat (CA de la fédération, index du site, révocation).
+- Aucune autre sortie réseau n'est permise depuis un site ; un module « accès Internet » au catalogue (proxy filtrant et journalisé) fait partie du pilote.
+- La plateforme centrale porte le générateur, l'annuaire, l'observation, le miroir des images et un relais réservé aux consommateurs hors fédération. Elle n'héberge aucun service métier.
+- Le lien central porte deux plans séparés par des espaces de topics et des ACL : contrôle (`peaas/_ctrl/`) et exposition.
+- Les certificats de site durent 90 jours. Ils sont renouvelés automatiquement à partir de J-30, et une alerte se déclenche à J-14.
+**Raison.**
+- Gouvernance : un site ne joint que ce qui lui est accordé.
+- Moins de liens qu'en maillage complet.
+- Autonomie choisie : si la plateforme centrale tombe, les liens directs continuent.
+- Certificats : le renouvellement dépend de la plateforme centrale. Avec 90 jours de validité et un renouvellement à partir de J-30, elle peut rester indisponible jusqu'à 30 jours sans qu'aucun lien ne tombe.
+**Écarté.**
+- Le maillage complet, faute de gouvernance.
+- L'étoile pure avec transit par le centre : DMR ne relaie pas d'un lien externe à l'autre, et le centre deviendrait critique pour les données.
+- Des certificats de 30 jours, qui laisseraient trop peu de marge en cas de panne du centre.
+**Touche.**
+- D-012 (inchangé).
+- D-026 : la plateforme centrale a son cluster.
+- D-035 : accorder un lien se fait par un fichier de mise à jour.
+- D-006 : la CA reste hors de la machine exposée.
+- Contrat de site, clauses R.
+**Statut.** Retenu (Lord, 19/11). À coder après IN1 M0-M3.
+
+---
+
 ## D-XXX — *(modèle)*
 **Décision.**
 **Raison.**

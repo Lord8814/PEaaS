@@ -1,7 +1,6 @@
 # Plateforme centrale et graphe hybride — proposition de conception
 
-**Statut.** Proposition du 19/11/2026. Elle reprend les arbitrages de Lord du
-même jour et attend sa validation avant d'entrer au journal (D-044).
+**Statut.** Retenu le 19/11/2026 (D-044). Réponses de Lord aux questions ouvertes en § 10.
 
 **En une phrase.** La fédération devient un graphe. Une plateforme centrale
 est reliée à chaque site. Des liens directs entre sites existent seulement
@@ -197,14 +196,12 @@ page (symptôme, vérification, action), rangé avec la documentation.
 Le filet change de forme. Il vérifie les liens centraux, les liens accordés,
 l'**absence** de lien non accordé et l'absence de sortie non accordée.
 
-## 10. Questions ouvertes
+## 10. Réponses de Lord (19/11)
 
-- Exposer une application : option A seule, ou A plus B pour les consommateurs
-  hors fédération (§ 4) ?
-- Qui valide la demande d'un lien direct : la plateforme centrale seule, ou
-  aussi l'équipe du site pair ?
-- Durée de vie des certificats de site : 30 jours, 90 jours ?
-- Le module d'accès Internet fait-il partie du pilote, ou seulement le
-  cloisonnement et le miroir ?
-- Effet sur le planning : à confronter à la démo L1 du 04/12 et à la
-  présentation du 29/01.
+| Question | Réponse |
+|---|---|
+| Exposer une application | annuaire **et** relais pour les consommateurs hors fédération |
+| Qui accorde un lien direct | la plateforme centrale seule, par le générateur (modules, mises à jour) ou à la demande |
+| Durée des certificats | 90 jours, renouvellement automatique dès J-30, alerte à J-14 (marge de 30 jours de panne du centre) |
+| Module d'accès Internet | dans le pilote |
+| Planning | avancer le plus possible : IN1 M0-M3, puis graphe sur le banc |

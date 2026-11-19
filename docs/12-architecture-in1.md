@@ -1,7 +1,7 @@
 # IN1 — Restructuration du générateur en trois niveaux : proposition d'architecture
 
-**Statut.** Proposition du 19/11/2026, à arbitrer par Lord. Aucun code n'est
-réécrit avant l'arbitrage, comme le demande D-032.
+**Statut.** Retenu le 19/11/2026 (D-043). Arbitrages A1 à A7 au journal. La suite du
+texte décrit la cible et le plan.
 
 **En une phrase.** Les trois niveaux (cadrage § 5.2) existent dans le discours,
 pas dans le code. Le niveau 1 et le niveau 2 sont mêlés dans le catalogue, dans
