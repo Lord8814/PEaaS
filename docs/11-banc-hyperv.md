@@ -11,7 +11,7 @@ Tout est sur le **pc-fixe** (Windows 11, Hyper-V, 64 Go de RAM).
 
 | VM Hyper-V | Rôle | RAM, vCPU | Administration (Default Switch) | Topologie (`MultiSite`, privé) |
 |---|---|---|---|---|
-| `PEaaS-MultiDebian` | générateur, plan de contrôle (pas un site) | 2 Go, 4 | `PEaaSDebian13.mshome.net` | — |
+| `PEaaS-MultiDebian` | générateur, plan de contrôle (pas un site) | 8 Go statiques, 4 | `PEaaSDebian13.mshome.net` | — |
 | `PEaaS-site-a` | site `site-a` (index 0) | 10 Go, 4 | `site-a.mshome.net` | `192.168.90.11` |
 | `PEaaS-site-b` | site `site-b` (index 1) | 10 Go, 4 | `site-b.mshome.net` | `192.168.90.12` |
 | `PEaaS-site-p` | site `site-p` (index 5) | 10 Go, 4 | `site-p.mshome.net` | `192.168.90.13` |
@@ -185,6 +185,20 @@ existe déjà n'est pas touchée : supprimer d'abord celle à refaire
 (`Remove-VM`, puis son dossier).
 
 ## Limites connues
+
+- Mémoire **statique** sur les quatre VM. Le générateur était en mémoire
+  dynamique (8 Go au démarrage, ramenés à 2 Go par le ballon) : 27 tests
+  d'`install.test.js` échouaient. Corrigé le 19/11 (`Set-VMMemory
+  PEaaS-MultiDebian -DynamicMemoryEnabled $false -StartupBytes 8GB`, VM
+  arrêtée).
+- Le DNS du Default Switch (`172.23.96.1`) peut cesser de répondre
+  (constaté le 19/11) : plus de noms `mshome.net`, plus de registre Docker
+  sur les sites. Les adresses restent visibles dans `arp -a` sur le pc-fixe.
+  Contournement sans toucher à la configuration : `ssh.exe -o HostName=<ip>
+  -o HostKeyAlias=<site>.mshome.net peaas-<site>`, et pour le filet une
+  configuration SSH temporaire passée par `PEAAS_FILET_SSH`/`PEAAS_FILET_SCP`.
+  Rétablissement : redémarrer le service « Partage de connexion Internet »
+  (`SharedAccess`, en administrateur) ou le pc-fixe.
 
 - Hyper-V n'affiche pas les adresses des VM de site (pas de démon KVP dans
   l'image) : utiliser les noms `mshome.net`.

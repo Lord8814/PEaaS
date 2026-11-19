@@ -670,3 +670,22 @@ par la CA de la fédération, SAN sans `127.0.0.1`), puis la page de connexion.
 Depuis l'autre VM : `curl -sk -m 5 https://<adresse de la VM>:1943/; echo $?`
 → code non nul (connexion refusée).
 Tranche : tâche 5 et D-018 (Manager joignable par tunnel, jamais par le pair).
+
+## 19/11/2026 — durée d'`install.sh` sur le code solidifié (L1)
+
+Filet `filet-20261119t010031z-22bbd1`, mode complet, générateur
+`8a463e0cec86`, catalogue `4535e007e1b9`, banc Hyper-V (3 VM Debian 13,
+10 Go, 4 vCPU, même hôte). Réinstallation sur des sites existants : images
+déjà présentes (épinglées par digest, résolues localement), données
+conservées. Durée totale lue dans `.peaas/mesures.log`, étape 9 (santé)
+comprise :
+
+| Site | Durée |
+|---|---|
+| site-a | 163 s |
+| site-b | 158 s |
+| site-p | 157 s |
+
+Sous le seuil des 5 min (300 s) dans ce cas. Ne vaut pas mesure sur un site
+neuf : le 18/11, le premier téléchargement des images portait la durée à
+520-580 s.

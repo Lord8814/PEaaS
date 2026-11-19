@@ -52,7 +52,7 @@ n'est pas jugée.
 |---|---|---|---|---|
 | **F1** | L'archive a une racine unique `peaas-<id du site>/`. Elle ne contient que des fichiers et des dossiers : aucun chemin absolu, aucun `..`, aucun lien. | noms et types des entrées ; `<id>` égal à `site.id` du profil | D-023 | conforme |
 | **F2** | L'archive ne contient aucun état d'exécution : pas de dossier `data/`, pas de `docker-compose.override.yml`, pas de dossier `tls/`, pas de `.peaas/mesures.log`. | noms des entrées | D-009 | conforme |
-| **F3** | Aucun fichier ni dossier n'est inscriptible par le groupe ou par les autres. | mode de chaque entrée (`mode & 022 = 0`) ; un lien (toujours 0777) est jugé par F1 | D-007 (durcissement des droits) | **violée** : `scripts/setup/` part en 0777 (2 dossiers, 9 scripts) |
+| **F3** | Aucun fichier ni dossier n'est inscriptible par le groupe ou par les autres. | mode de chaque entrée (`mode & 022 = 0`) ; un lien (toujours 0777) est jugé par F1 | D-007 (durcissement des droits), SE6 | conforme depuis le 19/11 (droits normalisés par le générateur) ; violée le 18/11 : `scripts/setup/` en 0777 |
 
 ## 2. Identité
 
@@ -96,7 +96,7 @@ Les interfaces d'administration, publiées sur `127.0.0.1` seulement :
 | **R1** | La plage Docker du site est `10.90.<index>.0/24`. Le profil, le `.env` et le compose disent la même chose ; le compose ne porte aucune plage en dur. | profil, `.env`, `networks.*.ipam` du compose | D-005 | conforme |
 | **R2** | Seuls les ports des trois flux inter-sites sont publiés sur l'interface du site. Aucun service n'utilise `network_mode: host`. | chaque entrée `ports:` sans liaison locale doit être dans le premier tableau ; une interface d'administration publiée partout est jugée par R3 seule | SE6, D-018 | conforme |
 | **R3** | Les interfaces d'administration (second tableau) sont liées à `127.0.0.1`. | adresse de liaison de chaque entrée `ports:` du second tableau (`127.0.0.0/8`, `::1` ou `localhost`) | D-018 | conforme |
-| **R4** | Aucun autre port n'est publié : un port lié à `127.0.0.1` est une interface d'administration du second tableau. | chaque entrée `ports:` locale doit être dans le second tableau | SE6 | **violée** : `solace` publie 55555, 1883, 8000, 5672, 9000 en local, sans consommateur sur l'hôte |
+| **R4** | Aucun autre port n'est publié : un port lié à `127.0.0.1` est une interface d'administration du second tableau. | chaque entrée `ports:` locale doit être dans le second tableau | SE6 | conforme depuis le 19/11 ; violée le 18/11 : `solace` publiait 55555, 1883, 8000, 5672, 9000 en local, sans consommateur sur l'hôte |
 
 Ajouter un port publié, c'est modifier un de ces deux tableaux, donc ce
 contrat, avec la décision qui le justifie.
@@ -105,15 +105,15 @@ contrat, avec la décision qui le justifie.
 
 | Clause | Énoncé | Vérification | Référence | État |
 |---|---|---|---|---|
-| **M1** | Chaque image est épinglée par digest (`nom[:tag]@sha256:<64 hexadécimaux>`). | champ `image` de chaque service | IN2 | **violée** : 8 services sur 8 (5 en `:latest`, 3 par tag seul) |
+| **M1** | Chaque image est épinglée par digest (`nom[:tag]@sha256:<64 hexadécimaux>`). | champ `image` de chaque service | IN2 | conforme depuis le 19/11 ; violée le 18/11 : 8 services sur 8 (5 en `:latest`, 3 par tag seul) |
 
 ## 5. Services
 
 | Clause | Énoncé | Vérification | Référence | État |
 |---|---|---|---|---|
-| **S1** | Chaque service a un `healthcheck` avec une commande (`test`), non désactivé. | compose | RE1 | **violée** : 8 sur 8 |
+| **S1** | Chaque service a un `healthcheck` avec une commande (`test`), non désactivé. | compose | RE1 | conforme depuis le 19/11 ; violée le 18/11 : 8 sur 8 |
 | **S2** | Chaque service a une politique de redémarrage : `unless-stopped`, `always` ou `on-failure`. | champ `restart` | RE1 | conforme |
-| **S3** | Chaque service a une limite mémoire et une limite CPU. | `deploy.resources.limits.memory` et `.cpus` (ou `mem_limit` et `cpus`) | FR2 | **violée** : 7 sur 8 (seul `nodered1` en a) |
+| **S3** | Chaque service a une limite mémoire et une limite CPU. | `deploy.resources.limits.memory` et `.cpus` (ou `mem_limit` et `cpus`) | FR2 | conforme depuis le 19/11 ; violée le 18/11 : 7 sur 8 (seul `nodered1` en a) |
 
 ## 6. Secrets
 
@@ -179,6 +179,23 @@ Le validateur tourne en mode **rapport** pendant L1 : l'archive est produite
 et le rapport y est joint (`.peaas/validation-contrat.json` et `.txt`). Il
 passera en mode **bloquant** (refus 409, clauses nommées) à la clôture de L1,
 une fois ces cinq clauses au vert.
+
+## Bilan au 19/11/2026
+
+**28/28 conformes** sur les trois packages de la topologie (`site-a`,
+`site-b`, `site-p`), générateur `8a463e0`, catalogue `4535e00`.
+
+| Clause | Corrigée par | Commit |
+|---|---|---|
+| M1 | IN2 : digest relevé sur les images déployées | `PEaaSrepo` `fdccfc2` |
+| S1 | RE1 : healthcheck dans chaque bloc du catalogue ; `install.sh` attend `healthy` (étape 9) | `PEaaSrepo` `37a0bdf`, générateur `8a463e0` |
+| S3 | FR2 : limites mémoire et CPU | `PEaaSrepo` `180164d` |
+| R4 | SE6 : ports de messagerie Solace non publiés | `PEaaSrepo` `4535e00` |
+| F3 | SE6 : droits de `scripts/` normalisés à l'assemblage de l'archive | générateur `c1c4006` |
+
+Le générateur en service tourne en mode **bloquant** depuis le 19/11
+(`PEAAS_CONTRAT_MODE=bloquant` dans `webapp/.env`, propre à l'hôte). Le défaut
+du code reste `rapport`, pour un générateur neuf.
 
 ## Utiliser le validateur
 

@@ -73,6 +73,51 @@ aucun secret. Options : `--sites`, `--generateur`, `--dossier-distant`,
   ici (prompt 01).
 - Avant le banc (18/11 22:46, générateur `1cf85643fce2`) : aucun site
   joignable, 16 échecs (rapport `filet-20261118t214639z-12d6f5`).
+
+## Clôture des clauses du contrat (L1 : IN2, RE1, FR2, SE6, 19/11)
+
+Les cinq clauses violées le 18/11 sont au vert. Validateur : **28/28
+conformes** sur les trois packages de la topologie. Le générateur en service
+est passé en mode **bloquant** (`PEAAS_CONTRAT_MODE=bloquant`, `webapp/.env`).
+Choix d'exécution : `docs/09-choix-execution.md`, lignes du 19/11.
+
+| Clause | Étape | Correctif | Commit |
+|---|---|---|---|
+| M1 | IN2 | 8 images épinglées par digest (celles déployées et validées le 18/11) | `PEaaSrepo` `fdccfc2` |
+| S1 | RE1 | healthcheck dans chaque service ; `install.sh` attend `healthy` (étape 9, `PEAAS_ATTENTE_SANTE`) | `PEaaSrepo` `37a0bdf`, générateur `8a463e0` |
+| S3 | FR2 | limites mémoire et CPU sur chaque service | `PEaaSrepo` `180164d` |
+| R4 | SE6 | Solace ne publie plus 55555, 1883, 8000, 5672, 9000 | `PEaaSrepo` `4535e00`, générateur `86fa13d` |
+| F3 | SE6 | droits de `scripts/` normalisés dans l'archive (0755/0644) | générateur `c1c4006` |
+
+VM du générateur : 8 Go statiques (mémoire dynamique désactivée). La suite de
+tests passe en entier, `install.test.js` compris (39/39).
+
+- **Filet, nouvelle référence** : mode complet, mode bloquant, vraie autorité,
+  générateur `8a463e0cec86` (propre), catalogue `4535e007e1b9`, 19/11, rapport
+  `filet-20261119t010031z-22bbd1` : **22 ok, 0 échec, 0 avertissement**,
+  code 0.
+
+  | Point | site-a | site-b | site-p |
+  |---|---|---|---|
+  | contrat (mode bloquant) | 28/28 | 28/28 | 28/28 |
+  | `install.sh` | **0, 163 s** | **0, 158 s** | **0, 157 s** |
+  | conteneurs | 8 sur 8 `healthy` | idem | idem |
+
+  Liens DMR A↔B, A↔P et B↔P actifs, lus par SEMP des deux côtés. Messages
+  reçus dans les deux sens sur les trois paires.
+  Durées : réinstallation sur des sites existants, images déjà présentes. Elles
+  passent sous le seuil des 5 min ; la mesure du seuil sur un site neuf
+  (premier téléchargement compris) reste à faire (D-032).
+
+**Reste ouvert après le 19/11** (signalé, pas tranché) :
+
+- D-028 : le code accepte un mot de passe d'un caractère
+  (`LONGUEUR_MIN_MOTDEPASSE = 1`, commit `9cd5129` du 22/09) ; le journal en
+  exige 24.
+- D-016 : le code du tirage est toujours là (O4 tient tant que
+  `PEAAS_PROFILE_URL_BASE` est vide).
+- Journal : D-030 et la décision du 03/11 n'ont pas d'entrée.
+- Seuil des 5 min à mesurer sur un site neuf.
 - Tests : `npm test` = 393, 365 verts, 27 rouges, 1 sauté. Les 27 rouges
   sont tous dans `install.test.js` : contrat de machine, 1,7 Go de RAM sur la
   copie Hyper-V contre 8 Go requis. Ce ne sont pas des régressions.
