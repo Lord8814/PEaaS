@@ -781,6 +781,40 @@ Historique propre à cet essai : le broker de site-p a été recréé pendant qu
 site-a et site-b, dont la génération était refusée (clause O1, commentaire
 de `pgadmin.sh`, corrigé dans `961a44e`), tournaient encore. Cause non établie.
 
+**Résolu le 19/11 (16 h 12) : base d'abonnements figée sur site-a et site-b.**
+Les messages entrants ne passaient pas parce que site-a et site-b
+n'apprenaient aucun abonnement de site-p. Leur base SMRP (`show smrp database
+detail`, CLI du broker) gardait pour `g:site-p` un bloc vide, checksum
+`0xffffffff`, « Synchronized with Last DbSummary : No » et une requête de
+resynchronisation en file, figés depuis 15 h 39 (site-b) et 15 h 45 (site-a),
+c'est-à-dire depuis la recréation du broker de site-p. site-p, lui, annonçait
+bien ses 6 abonnements (checksum `0x48e3587c`). Rien de ce que lit SEMP
+(cluster, liens, ponts DMR) ne le montrait : tout était `up`.
+- Couper les deux liens de site-p en même temps (SEMP, `enabled: false`)
+  ne purge rien : aucun minuteur, l'entrée reste après 160 s.
+- `docker restart solace` sur site-a, puis sur site-b (85 s et 95 s jusqu'à
+  `healthy`), liens de site-p coupés : l'entrée `g:site-p` disparaît.
+- Liens de site-p rétablis : 6 abonnements, checksum identique des deux côtés,
+  synchronisés. Filet `filet-20261119t161158z-e8483d` : **16 ok, 0 échec**,
+  messages dans les six sens.
+
+À retenir : recréer le broker d'un site pendant que ses voisins tournent peut
+laisser chez eux un état SMRP figé que SEMP ne montre pas. Après une
+recréation, si les messages entrants manquent : regarder `g:<site>` dans
+`show smrp database` chez les voisins, et redémarrer leur broker. Le
+mécanisme exact (pourquoi la resynchronisation ne repart pas) n'est pas
+établi. Un seul cas observé.
+
+## 19/11/2026 — IN1 M5 (emplacement du niveau 3) : filet complet 25/25
+
+Générateur `46447c8`, catalogue `9b378de`. Filet complet
+`filet-20261119t163817z-b39131` : **25 ok, 0 échec**. Les trois sites ont été
+régénérés (contrat 28/28) et réinstallés (`install.sh` en 0, 84 s chacun, sites
+en place), et les messages passent dans les six sens. Aucun site n'a de cas
+d'usage, donc l'étape 10 est restée silencieuse. Les brokers n'ont pas été
+recréés (compose inchangé) : l'état SMRP figé décrit plus haut n'a pas été
+reproduit.
+
 ## 19/11/2026 — panne de composant récupérée seule (seuil Résilience)
 
 Seuil du planning : « panne de composant récupérée seule en moins de

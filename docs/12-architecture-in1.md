@@ -109,8 +109,19 @@ identiques à M3 sur les 43 scénarios d'`install.test.js` (comparaison ligne à
 ligne), 419 tests verts, filet complet 25/25 sur les sites en place, site
 vierge 259 s. Les phases sont **sourcées** par `install.sh`, pas lancées : les
 étapes du socle s'intercalent entre celles de l'infrastructure (certificats
-avant le démarrage). `3-cas-usage.sh` arrive avec M5. Ouvert : messages
-entrants du site-p recréé (doc 05, 19/11).
+avant le démarrage). Messages entrants du site-p recréé : résolu le 19/11
+(base d'abonnements figée chez les voisins, doc 05).
+
+M5 `46447c8` (générateur) / `9b378de` (PEaaSrepo) : `cas-usage/` (README
+seul), champ `cas_usage` de la topologie, `assemblage/niveau3-usages.js`,
+`scripts/install/3-cas-usage.sh` (étape 10, après la santé). Sans cas
+d'usage, l'archive porte seulement `.peaas/cas-usage` vide et la phase 3 en
+plus ; l'étape 10 est silencieuse et la sortie d'`install.sh` à l'écran est
+celle de M4. Un cas inconnu ou dont un composant requis manque refuse la
+génération (400). Un script en échec ou hors délai arrête l'installation
+(code 6). 453 tests verts (34 nouveaux) ; référence M0 réécrite (seuls
+changent `install.sh`, `.peaas/cas-usage` et `scripts/install/3-cas-usage.sh`). Filet complet
+25/25 (`filet-20261119t163817z-b39131`).
 
 M1 à M3 ne touchent pas les sites. M4 est la seule marche risquée, parce qu'elle
 réécrit le script lancé sur les machines : c'est là que le filet sert.
