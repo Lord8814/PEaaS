@@ -873,3 +873,40 @@ Carte `topologie` de `PEaaS-site-p` débranchée du commutateur `MultiSite`
   « message » qui fait foi. À retenir pour l'alerte sur panne (OP4, L3).
 - Rebranchement : filet complet **16 ok, 0 échec 95 s après**, sans
   intervention (granularité : un passage du filet, environ une minute).
+
+## 20/11/2026 — lien accordé A↔B retiré, accordé, retiré (G4, D-046)
+
+Graphe hybride sur brokers réels : centre site-p, site-a et site-b reliés
+au centre ; le lien direct A↔B n'existe que s'il est accordé
+(`liens_accordes` de `topology.yaml`). Générateur `1df0abf` (filet G3,
+absence prouvée), puis `9b9e862`. Base SMRP relevée à chaque temps
+(`show smrp database`, CLI Solace) : le blocage du 19/11 était surveillé.
+
+| Temps | Voie | Catalogue | Filet | Résultat |
+|---|---|---|---|---|
+| 0. référence (A↔B accordé) | — | `f14feb3` | `filet-20261120t152819z-82f584` (complet) | 25/25 |
+| 1. A↔B retiré | régénération et `install.sh` | `71cc3d9` | `filet-20261120t153928z-13a1f1` (complet) | **25/25** : sans lien DMR et sans message A↔B (8 et 7 publications en 30 s, rien reçu) |
+| 2. A↔B accordé | `exporter-profils.sh` + `update-site.sh --profil` (B puis A) | `6971323` | `filet-20261120t154655z-b7bd88` (vérification) | **16/16** : lien et messages A↔B |
+| 3. A↔B retiré | idem (A puis B) | `6eb88f9` | `filet-20261120t154753z-e66364` (vérification) | **16/16** : absence prouvée |
+| 4. référence finale | régénération et `install.sh` | `6eb88f9` | `filet-20261120t160027z-ca2202` (complet) | **25/25**, générateur `9b9e862` |
+
+- **Suppression sur broker réel** (temps 1 et 3) : journaux « pont DMR vers
+  site-b retiré : absent du profil » puis « lien DMR vers site-b retiré »
+  sur site-a, symétrique sur site-b ; le centre : « aucun lien ni pont en
+  trop ». Liste lue ensuite par SEMP : `site-p` seul sur A et sur B.
+- **SMRP** : avant, chaque site connaît `g:site-a`, `g:site-b`, `g:site-p`
+  (6 abonnements, 0 requête en file). Après retrait, `g:site-b` disparaît
+  de site-a (et `g:site-a` de site-b), le centre garde les trois ; aucune
+  requête en file, aucune entrée figée. Après accord, `g:site-b` revient
+  (7 abonnements un instant, abonné du filet, revenu à 6 au temps 3).
+  Le blocage du 19/11 (broker recréé) ne s'est pas reproduit : supprimer
+  ou recréer un lien ne fige pas la base, aucun redémarrage de Solace.
+- **Temps 2** : site-b mis à jour avant site-a, son lien vers A est resté
+  « Channel(s) Down » jusqu'à la mise à jour de site-a (avertissement
+  attendu), puis monté en moins d'une minute.
+- **DMR ne relaie pas par le centre** : sans lien direct, aucun message
+  A→B ni B→A, alors que les deux sites sont reliés à site-p.
+- **Défaut trouvé et corrigé** : `update-site.sh` annonçait encore, pour
+  un pair retiré, « lien DMR existant PAS supprimé (à nettoyer à la
+  main) », faux depuis G2. Remplacé par une information exacte ; la ligne
+  SUCCES nomme les pairs retirés (générateur `9b9e862`, 467 tests).

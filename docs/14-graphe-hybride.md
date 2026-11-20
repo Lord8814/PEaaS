@@ -149,5 +149,20 @@ annuaire et relais pour les consommateurs hors fédération (doc 13 § 4).
   Liste lue sur le broker réel de site-a : `site-b site-p`. L'absence n'est
   jouée sur le banc qu'avec G4.
 
-**Ensuite** : G4 (A↔B retiré, puis accordé, puis retiré sur le banc), puis
-blocs P et C.
+**G4 fait (20/11)** : catalogue `71cc3d9` (retiré), `6971323` (accordé),
+`6eb88f9` (retiré) ; générateur `9b9e862`. Détail et SMRP : doc 05.
+- Retrait par régénération : filet complet 25/25
+  (`filet-20261120t153928z-13a1f1`), « sans lien DMR » et « sans message »
+  A↔B prouvés sur brokers réels ; lien et pont supprimés par
+  `solace-dmr.sh` des deux côtés.
+- Accord puis retrait par `exporter-profils.sh` + `update-site.sh --profil`
+  (D-045) : filets de vérification 16/16 (`filet-20261120t154655z-b7bd88`,
+  `filet-20261120t154753z-e66364`).
+- Base SMRP saine à chaque temps (aucune file, aucune entrée figée, aucun
+  redémarrage de Solace).
+- Corrigé : `update-site.sh` ne dit plus qu'un lien retiré reste à
+  nettoyer à la main.
+- État final du banc : A↔B **non accordé** (`liens_accordes: []`), filet
+  complet `filet-20261120t160027z-ca2202`.
+
+**Bloc G terminé.** **Ensuite** : bloc P (P1 : ACL Solace `peaas-agent`).
