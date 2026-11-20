@@ -101,12 +101,33 @@ annuaire et relais pour les consommateurs hors fédération (doc 13 § 4).
   `site-profile.yaml` change.
 - Filet complet 25/25 le 20/11 (`filet-20261120t075255z-ec09fc`) : site-p
   généré avec 7 composants ; liens et messages des trois paires actifs.
-- `solace-dmr.sh` lit encore `dmr_link_initiator` (absent : `lowest_index`
-  par défaut), ce qui donne les mêmes sens sur le banc. Le sens lu dans le
-  profil arrive avec G2.
+- (Avant G2, `solace-dmr.sh` calculait encore le sens par index ; G2 le lit
+  dans le profil.)
 - Reste sur site-p : le conteneur `nodered1` installé avant G1 (le compose
   du centre ne le porte plus).
 
-**Ensuite** : G2 (sens lu dans le profil, suppression des liens absents),
-G3 (filet par arêtes, absence prouvée), G4 (A↔B retiré puis accordé sur le
-banc), puis blocs P et C.
+**G2 fait (20/11)** : catalogue `08b22ea`, générateur (tests) `43545ce`.
+- `solace-dmr.sh` : sens du lien = `dmr_initiate` du pair, vérifié pour
+  tous les pairs avant toute écriture (absent ou invalide : arrêt nommé,
+  profil à régénérer). `lib/dmr-initiator.sh` et son test retirés.
+- Retrait au rejeu : pont DMR du VPN local et lien **externe** absents du
+  profil supprimés (lien désactivé s'il est actif, puis supprimé, ses
+  adresses partent avec lui). Liens internes (`#ACTIVE`, `span: internal`,
+  vu dans l'export réel du 21/09) et ponts `#…` jamais touchés. Profil sans
+  pair et cluster présent : tous les liens externes retirés, cluster gardé.
+  Collections lues avec `count=100` (une page).
+- `verifier-federation.sh` : liens attendus = pairs du profil, sans filtre
+  par index ; un lien externe présent sur le broker et absent du profil est
+  signalé (« LIEN EN TROP », avertissement, lecture seule).
+- `lire_pairs` (`lib/semp.sh`) : colonne `lien` (`central`/`accorde`),
+  affichée dans le journal du script.
+- Tests : 463 verts, 1 sauté (dont 6 de retrait sur faux SEMP, 2 de
+  vérification). Référence M0 réécrite : seuls les scripts Solace changent.
+- Filet complet 25/25 (`filet-20261120t085913z-ad7413`). Journaux
+  d'installation : sens identiques à G1 (A ouvre vers B et P, B vers P, le
+  centre n'ouvre rien), « aucun lien ni pont en trop » sur les trois sites.
+- Le retrait n'est prouvé que sur faux SEMP : la suppression sur un broker
+  réel arrive avec G4 (A↔B retiré sur le banc).
+
+**Ensuite** : G3 (filet par arêtes, absence prouvée), G4 (A↔B retiré puis
+accordé sur le banc), puis blocs P et C.

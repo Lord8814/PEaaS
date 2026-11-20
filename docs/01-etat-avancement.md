@@ -7,9 +7,9 @@ général et la carte des documents, voir `00-vue-ensemble.md`.
 
 # État d'avancement — PEaaS multi-site
 
-**Dernière mise à jour :** 20/11/2026 — graphe hybride, marche G1 faite (D-046, doc 14), filet complet 25/25.
+**Dernière mise à jour :** 20/11/2026 — graphe hybride, marches G1 et G2 faites (D-046, doc 14), filet complet 25/25.
 
-## Graphe hybride, marche G1 (D-046, 19-20/11)
+## Graphe hybride, marches G1 et G2 (D-046, 19-20/11)
 
 Plan : `docs/14-graphe-hybride.md` (avancement en section 8). Sur le banc,
 site-p devient le centre ; site-a et site-b sont des sites reliés à lui ; le
@@ -26,9 +26,18 @@ lien A↔B est un lien accordé (porté par site-a).
   et les trois VM de site sont restées éteintes ; rallumées le 20/11.
 - À faire sur site-p : retirer le conteneur `nodered1` d'avant G1
   (`docker rm -f nodered1`), le compose du centre ne le porte plus.
-- **Ensuite** : G2 (`solace-dmr.sh` lit le sens dans le profil et supprime
-  les liens absents), G3 (filet par arêtes, absence prouvée), G4 (A↔B retiré
-  puis accordé sur le banc).
+- **G2 fait le 20/11** : catalogue `08b22ea`, tests `43545ce`.
+  `solace-dmr.sh` lit le sens dans le profil (`dmr_initiate`,
+  `lib/dmr-initiator.sh` retiré) et supprime au rejeu les liens externes et
+  ponts absents du profil (`#ACTIVE` jamais touché).
+  `verifier-federation.sh` signale un lien en trop. 463 tests verts ;
+  **filet complet 25/25** (`filet-20261120t085913z-ad7413`), « aucun lien ni
+  pont en trop » sur les trois sites. Retrait prouvé sur faux SEMP
+  seulement : la preuve sur broker réel vient avec G4.
+- Le filet refuse de générer si le générateur n'a pas été redémarré après un
+  commit (409, D-015) : `docker restart webapp` avant chaque filet.
+- **Ensuite** : G3 (filet par arêtes, absence prouvée), G4 (A↔B retiré puis
+  accordé sur le banc).
 
 ## Contrat de site, validateur et filet (L1, prompt 01, 16-18/11)
 
