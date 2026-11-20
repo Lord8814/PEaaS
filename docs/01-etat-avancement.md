@@ -7,9 +7,9 @@ général et la carte des documents, voir `00-vue-ensemble.md`.
 
 # État d'avancement — PEaaS multi-site
 
-**Dernière mise à jour :** 20/11/2026 — graphe hybride, marches G1 et G2 faites (D-046, doc 14), filet complet 25/25.
+**Dernière mise à jour :** 20/11/2026 — graphe hybride, marches G1, G2 et G3 faites (D-046, doc 14), filet complet 25/25.
 
-## Graphe hybride, marches G1 et G2 (D-046, 19-20/11)
+## Graphe hybride, marches G1 à G3 (D-046, 19-20/11)
 
 Plan : `docs/14-graphe-hybride.md` (avancement en section 8). Sur le banc,
 site-p devient le centre ; site-a et site-b sont des sites reliés à lui ; le
@@ -36,8 +36,16 @@ lien A↔B est un lien accordé (porté par site-a).
   seulement : la preuve sur broker réel vient avec G4.
 - Le filet refuse de générer si le générateur n'a pas été redémarré après un
   commit (409, D-015) : `docker restart webapp` avant chaque filet.
-- **Ensuite** : G3 (filet par arêtes, absence prouvée), G4 (A↔B retiré puis
-  accordé sur le banc).
+- **G3 fait le 20/11** : catalogue `f14feb3`, générateur `1df0abf`. Le
+  filet joue les arêtes du graphe (centre, liens accordés) ; sur une paire
+  non accordée, il prouve l'absence : « sans lien DMR » (liste des liens
+  externes lue par SEMP des deux côtés, affichée par
+  `verifier-federation.sh`) et « sans message » (non reçu, abonné prêt,
+  publication réussie). 467 tests verts ; **filet complet 25/25**
+  (`filet-20261120t152819z-82f584`). A↔B est encore accordé sur le banc :
+  l'absence se joue avec G4.
+- **Ensuite** : G4 (A↔B retiré, puis accordé, puis retiré sur le banc ;
+  surveiller la base SMRP, doc 05).
 
 ## Contrat de site, validateur et filet (L1, prompt 01, 16-18/11)
 

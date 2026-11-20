@@ -129,5 +129,25 @@ annuaire et relais pour les consommateurs hors fédération (doc 13 § 4).
 - Le retrait n'est prouvé que sur faux SEMP : la suppression sur un broker
   réel arrive avec G4 (A↔B retiré sur le banc).
 
-**Ensuite** : G3 (filet par arêtes, absence prouvée), G4 (A↔B retiré puis
-accordé sur le banc), puis blocs P et C.
+**G3 fait (20/11)** : catalogue `f14feb3`, générateur `1df0abf`.
+- `verifier-federation.sh` affiche la liste des liens externes lus sur le
+  broker (« Liens externes sur le broker (SEMP) : … », `aucun` si vide) ;
+  collection illisible : avertissement nommé, liens en trop non vérifiés.
+- `filet.js` : paires = graphe (`graphe()` : arête si un des deux sites est
+  le centre ou si la paire est dans `liens_accordes`). Sur une arête : points
+  « lien DMR » et « message » comme avant. Sur une paire non accordée :
+  « sans lien DMR » (l'autre site absent de la liste lue des deux côtés ;
+  liste non lue = absence non prouvée, échec) et « sans message » (non reçu
+  dans les deux sens, abonné prêt et au moins une publication réussie ;
+  sinon absence non prouvée, échec). Le plan à blanc compte arêtes et
+  paires non accordées.
+- Tests : 467 verts, 1 sauté (dont 4 nouveaux du filet : graphe, absence
+  prouvée, lien présent et message reçu, absence non prouvée). Référence M0
+  réécrite : seul `verifier-federation.sh` change.
+- Filet complet 25/25 (`filet-20261120t152819z-82f584`) : la topologie du
+  banc accorde encore A↔B, donc trois arêtes et aucune paire non accordée.
+  Liste lue sur le broker réel de site-a : `site-b site-p`. L'absence n'est
+  jouée sur le banc qu'avec G4.
+
+**Ensuite** : G4 (A↔B retiré, puis accordé, puis retiré sur le banc), puis
+blocs P et C.
