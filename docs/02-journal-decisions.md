@@ -709,7 +709,7 @@ La restructuration se fait par marches (M0 à M7). Une marche qui ne change pas 
 - Trois blocs dans cet ordre : graphe, plan de contrôle minimal (état, sonde), cloisonnement (sorties fermées, miroir, module d'accès Internet).
 **Raison.** Réponses de Lord du 19/11 aux six questions posées avant le lancement.
 **Écarté.** Déplacer le générateur sur site-p (chantier séparé, et D-006 garde la clé de la CA hors de la machine exposée).
-**Statut.** Retenu. Arbitrages B1 à B5 du plan (doc 14, section 6) ouverts. Certificats 90 jours et révocation : lot suivant.
+**Statut.** Retenu. Arbitrages du plan (doc 14, section 6), Lord le 19/11 : B1 `install.sh` pose le pare-feu de sortie (amendement de D-019 à inscrire en C1) ; B2 essai sur le banc avant de choisir le mode de tirage du miroir ; B3 proxy du socket Docker en lecture seule ; B4 tableau de bord dans le Grafana du centre ; B5 domaines autorisés par site dans `topology.yaml`. Certificats 90 jours et révocation : lot suivant. **G1 fait le 19/11** (doc 14, section 8).
 
 ---
 

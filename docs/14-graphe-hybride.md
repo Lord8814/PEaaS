@@ -1,8 +1,8 @@
 # Graphe hybride, plan de contrôle, cloisonnement — plan de réalisation
 
-**Statut.** Proposition du 19/11/2026. Met en œuvre D-044 (conception :
-`13-plateforme-centrale.md`) avec les choix de Lord du 19/11 (D-046). Les
-points de la section 6 attendent un arbitrage avant leur marche.
+**Statut.** Retenu le 19/11/2026. Met en œuvre D-044 (conception :
+`13-plateforme-centrale.md`) avec les choix de Lord du 19/11 (D-046).
+Arbitrages B1 à B5 tranchés (section 6). Avancement : section 8.
 
 **En une phrase.** Sur le banc, site-p devient la plateforme centrale, site-a
 et site-b deviennent des sites reliés à elle ; le lien A↔B n'existe que s'il
@@ -55,7 +55,7 @@ Le centre ne transporte pas de données entre sites (option A de la doc 13).
 G1 → G2 → G3 → G4, puis P1 → P2 → P3, puis C1 → C2 → C3. Chaque marche se
 termine comme IN1 : tests verts, filet complet vert, commit, journal.
 
-## 6. À trancher avant la marche concernée
+## 6. Arbitrages (Lord, 19/11)
 
 | # | Question | Recommandation | Pourquoi |
 |---|---|---|---|
@@ -65,8 +65,48 @@ termine comme IN1 : tests verts, filet complet vert, commit, journal.
 | B4 (P3) | Où vit le tableau de bord du graphe ? | Dans le Grafana du centre (site-p), alimenté par le collecteur via Prometheus. | Le générateur n'est pas dans le graphe DMR ; Grafana et Prometheus sont déjà au catalogue. |
 | B5 (C3) | Où se déclare la liste des domaines autorisés ? | Par site dans `topology.yaml` (`acces_internet: [domaines]`), revue comme le reste de la topologie. | Elle varie d'un site à l'autre et doit être relue avant d'être accordée. |
 
+**Réponses de Lord (19/11).**
+- **B1 : `install.sh` pose lui-même le pare-feu de sortie** (et non un script
+  séparé). D-019 sera amendé au journal au moment de C1.
+- **B2 : essai sur le banc, puis choix** (piste : tirage par digest depuis le
+  miroir et retag au nom d'origine).
+- **B3 : proxy du socket Docker en lecture seule** (option 1).
+- **B4 : tableau de bord du graphe dans le Grafana du centre** (pris par
+  défaut, sans objection).
+- **B5 : domaines autorisés par site dans `topology.yaml`**
+  (`acces_internet: [...]`).
+
 ## 7. Hors de ce plan (lot suivant)
 
 Certificats de 90 jours renouvelés dès J-30 avec alerte à J-14, liste de
 révocation diffusée par le plan de contrôle, audit et dérive au centre,
 annuaire et relais pour les consommateurs hors fédération (doc 13 § 4).
+
+## 8. Avancement
+
+**G1 fait (19/11)** : générateur `db60c33`, catalogue `0cb01db`.
+- `multisite.js` : `federation.centre` obligatoire, `liens_accordes` validés
+  (site connu, pas le centre, pas de lien vers soi, pas de doublon) ;
+  `role.dmr_link_initiator` refusé. Profil : `site.role` (`centre`/`site`)
+  remplace `dmr_link_initiator` ; chaque pair porte `lien` (`central` ou
+  `accorde`) et un sens explicite.
+- Centre : `exclu_du_centre: true` au catalogue (`nodered1`), refus 400 à la
+  génération ; le filet retire ces composants de la génération du centre.
+- Retirer le centre, ou un site cité par un lien accordé : refus 422 nommé.
+- Interface et `/api/sites` : colonne « rôle », plus de choix de politique.
+- `topology.yaml` du banc migré : centre site-p, lien A↔B accordé à site-a.
+  Les liens et leurs sens sont **identiques** au maillage d'avant (site-a
+  ouvre vers B et P, site-b vers P).
+- Tests : 458 verts, 1 sauté. Référence M0 réécrite : seul
+  `site-profile.yaml` change.
+- Filet complet 25/25 le 20/11 (`filet-20261120t075255z-ec09fc`) : site-p
+  généré avec 7 composants ; liens et messages des trois paires actifs.
+- `solace-dmr.sh` lit encore `dmr_link_initiator` (absent : `lowest_index`
+  par défaut), ce qui donne les mêmes sens sur le banc. Le sens lu dans le
+  profil arrive avec G2.
+- Reste sur site-p : le conteneur `nodered1` installé avant G1 (le compose
+  du centre ne le porte plus).
+
+**Ensuite** : G2 (sens lu dans le profil, suppression des liens absents),
+G3 (filet par arêtes, absence prouvée), G4 (A↔B retiré puis accordé sur le
+banc), puis blocs P et C.

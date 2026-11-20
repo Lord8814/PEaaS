@@ -7,7 +7,28 @@ général et la carte des documents, voir `00-vue-ensemble.md`.
 
 # État d'avancement — PEaaS multi-site
 
-**Dernière mise à jour :** 18/11/2026 — phase pilote, lot L1, prompt 01 : contrat de site, validateur et filet (D-032, D-042). Contenu précédent : 06/10/2026 — cases « message A → B sur les VM » et phase 3 (déclaration d'Ethan, constat du 06/10 joint ; voir `docs/exploration/`).
+**Dernière mise à jour :** 20/11/2026 — graphe hybride, marche G1 faite (D-046, doc 14), filet complet 25/25.
+
+## Graphe hybride, marche G1 (D-046, 19-20/11)
+
+Plan : `docs/14-graphe-hybride.md` (avancement en section 8). Sur le banc,
+site-p devient le centre ; site-a et site-b sont des sites reliés à lui ; le
+lien A↔B est un lien accordé (porté par site-a).
+
+- **G1 fait** : générateur `db60c33`, catalogue `0cb01db`. `federation.centre`
+  et `liens_accordes` dans `topology.yaml`, `dmr_link_initiator` retiré ; le
+  profil de site porte le rôle (`centre`/`site`) et, pour chaque pair, le type
+  de lien et un sens explicite. `nodered1` marqué `exclu_du_centre`.
+- Tests : 458 verts, 1 sauté. **Filet complet 25/25 le 20/11**
+  (`filet-20261120t075255z-ec09fc`) : site-p généré avec 7 composants, liens
+  et messages A↔B, A↔P, B↔P actifs, sens identiques au maillage d'avant.
+- Le filet lancé le 19/11 au soir n'a pas abouti : l'hôte a redémarré à 19:29
+  et les trois VM de site sont restées éteintes ; rallumées le 20/11.
+- À faire sur site-p : retirer le conteneur `nodered1` d'avant G1
+  (`docker rm -f nodered1`), le compose du centre ne le porte plus.
+- **Ensuite** : G2 (`solace-dmr.sh` lit le sens dans le profil et supprime
+  les liens absents), G3 (filet par arêtes, absence prouvée), G4 (A↔B retiré
+  puis accordé sur le banc).
 
 ## Contrat de site, validateur et filet (L1, prompt 01, 16-18/11)
 
