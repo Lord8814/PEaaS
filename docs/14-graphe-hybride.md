@@ -2,7 +2,8 @@
 
 **Statut.** Retenu le 19/11/2026. Met en œuvre D-044 (conception :
 `13-plateforme-centrale.md`) avec les choix de Lord du 19/11 (D-046).
-Arbitrages B1 à B5 tranchés (section 6). Avancement : section 8.
+Arbitrages B1 à B5 tranchés (section 6), révisés le 22/11 par D-047 (le
+package ne gère que lui-même). Avancement : section 8.
 
 **En une phrase.** Sur le banc, site-p devient la plateforme centrale, site-a
 et site-b deviennent des sites reliés à elle ; le lien A↔B n'existe que s'il
@@ -42,13 +43,19 @@ La base SMRP figée du 19/11 (doc 05) est surveillée à chaque étape.
 
 Le centre ne transporte pas de données entre sites (option A de la doc 13).
 
+Périmètre de l'agent (D-047) : il peut agir, pas seulement lire, mais
+seulement sur ce que fournit le package (objets `peaas.site=<id>` ou reliés au
+réseau du package). Le proxy du socket Docker limite les routes ; le filtrage
+par label est tenu par l'agent. Toute action hors de ce périmètre passe
+d'abord au journal.
+
 ## 4. Bloc C — cloisonnement
 
 | Marche | Contenu | Preuve |
 |---|---|---|
-| C1 | Sorties fermées par défaut sur chaque site : seuls les liens DMR accordés (pairs du profil, 55443), le centre et NTP sortent. Contrat : nouvelle clause R. Filet : volet « sortie » (une adresse non accordée est injoignable depuis un conteneur). | filet + contrat |
-| C2 | Miroir des images au centre, épinglées par digest : un site ne joint plus aucun registre public. | site vierge installé avec registre public coupé |
-| C3 | Module « accès Internet » au catalogue : proxy sortant filtrant, liste de domaines par site, journalisé et observé au centre. | filet : domaine autorisé joint, autre domaine refusé |
+| C1 | Cloisonnement **dans le package** (D-047, aucun pare-feu de l'hôte) : conteneurs du site sur un réseau Docker interne ; seuls Solace (pairs du profil, 55443) et le module d'accès Internet sont reliés à un réseau qui sort. Contrat : nouvelle clause R (réseau interne, seuls ces deux services en sortie). Filet : volet « sortie » (depuis un conteneur, une adresse externe n'est joignable que par le module). `install.sh` : avertissement « à regarder » sur les ports publiés (Docker contourne un pare-feu de l'hôte). | filet + contrat |
+| C2 | Mise à jour pilotée depuis le centre : images et tout ce que le package fournit. Miroir au centre possible, non exigé. Mécanisme à choisir (ordre sur `peaas/_ctrl/<site>/`, exécuté par l'agent dans son périmètre ?) ; amende D-035 et D-045 une fois choisi. | une mise à jour d'image lancée du centre, appliquée sur un site, filet vert |
+| C3 | Module « accès Internet » **dans le socle** de chaque package : proxy sortant journalisé, observé au centre, seule sortie Internet des conteneurs. N'interdit rien par défaut ; `acces_internet` de `topology.yaml` sert de référence (sortie hors liste signalée). | filet : sortie par le module journalisée et vue au centre ; sortie directe impossible |
 
 ## 5. Ordre et banc
 
@@ -75,6 +82,17 @@ termine comme IN1 : tests verts, filet complet vert, commit, journal.
   défaut, sans objection).
 - **B5 : domaines autorisés par site dans `topology.yaml`**
   (`acces_internet: [...]`).
+
+**Révision (Lord, 22/11, D-047 — le package ne gère que lui-même).**
+- **B1 retiré** : `install.sh` ne pose aucun pare-feu. Le cloisonnement passe
+  par les réseaux Docker du package et le module d'accès Internet (C1, C3).
+- **B2 remplacé** : la question devient « comment le centre met à jour un
+  site » (C2). Le miroir reste une option ; `daemon.json` n'est pas touché.
+- **B3 élargi** : l'agent peut agir, dans le seul périmètre du package.
+- **B5** : la liste de domaines est une référence d'observation, pas un
+  filtre bloquant.
+- Prérequis de la machine (DNS, NTP, LLMNR/mDNS, adresse) : vérifiés, jamais
+  corrigés ; nouvelles observations en avertissement « à regarder ».
 
 ## 7. Hors de ce plan (lot suivant)
 

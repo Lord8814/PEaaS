@@ -269,6 +269,8 @@ servie par un miroir interne ou un registre d'entreprise satisfait la clause
 sans rien changer au script. L'interrogation se fait par
 `docker manifest inspect` — on constate l'accessibilité, on ne préfetche pas.
 
+**Amendée (22/11/2026, D-047).** Le package ne modifie jamais la machine hôte : ni pare-feu, ni proxy du système ou du démon Docker, ni DNS, heure, interfaces ou routes. Ces réglages restent des prérequis de la machine, vérifiés et jamais corrigés ; les vérifications existantes gardent leur niveau, et `install.sh` dit à l'opérateur ce qu'il attend de la machine. Toute nouvelle observation sur la configuration de l'hôte est un avertissement « à regarder », hors contrat, jamais un arrêt.
+
 ---
 
 ## D-020 — Génération refusée depuis un dépôt sale
@@ -687,6 +689,8 @@ La restructuration se fait par marches (M0 à M7). Une marche qui ne change pas 
 - Contrat de site, clauses R.
 **Statut.** Retenu (Lord, 19/11). À coder après IN1 M0-M3.
 
+**Amendée (22/11/2026, D-047).** Le cloisonnement se fait dans le package, pas sur l'hôte : réseau Docker interne pour les conteneurs du site, et toute sortie Internet par le module d'accès Internet, qui devient un composant du socle installé dans chaque package. Le module journalise et rend la sortie observable par le centre ; il n'interdit rien par défaut. Le miroir n'est plus exigé : ce qui est exigé, c'est que la mise à jour des images et de tout ce que le package fournit puisse être pilotée depuis la plateforme centrale.
+
 ---
 
 ## D-045 — Mise à jour d'un site existant : un profil exporté, une commande (décision du 03/11)
@@ -710,6 +714,25 @@ La restructuration se fait par marches (M0 à M7). Une marche qui ne change pas 
 **Raison.** Réponses de Lord du 19/11 aux six questions posées avant le lancement.
 **Écarté.** Déplacer le générateur sur site-p (chantier séparé, et D-006 garde la clé de la CA hors de la machine exposée).
 **Statut.** Retenu. Arbitrages du plan (doc 14, section 6), Lord le 19/11 : B1 `install.sh` pose le pare-feu de sortie (amendement de D-019 à inscrire en C1) ; B2 essai sur le banc avant de choisir le mode de tirage du miroir ; B3 proxy du socket Docker en lecture seule ; B4 tableau de bord dans le Grafana du centre ; B5 domaines autorisés par site dans `topology.yaml`. Certificats 90 jours et révocation : lot suivant. **G1 fait le 19/11, G2 le 20/11** (doc 14, section 8).
+
+**Révisée (22/11/2026, D-047, Lord).** B1 retiré : `install.sh` ne pose aucun pare-feu, D-019 n'est pas amendée dans ce sens. B2 remplacé : la question n'est plus « comment tirer du miroir » mais « comment le centre met à jour un site » ; le miroir reste une option. B3 élargi : l'agent n'est pas limité à la lecture, mais n'agit que sur ce que fournit le package (label `peaas.site=<id>` ou réseau du package) ; le proxy du socket filtre les routes, le filtrage par label est tenu par l'agent. B5 : la liste `acces_internet` sert de référence à l'observation (une sortie hors liste est signalée, pas refusée). B4 inchangé.
+
+---
+
+## D-047 — Le package ne gère que lui-même
+**Date.** 22/11/2026 (Lord).
+**Décision.** Le package (archive, `install.sh`, `update-site.sh` et les conteneurs qu'ils installent) n'agit que sur ce qu'il fournit : son dossier, et les conteneurs, réseaux et volumes Docker qu'il crée et étiquette `peaas.site`. Il ne modifie pas la configuration de la machine hôte : ni pare-feu (nftables, `DOCKER-USER`), ni proxy du système ou du démon Docker (`daemon.json`, `~/.docker/config.json`), ni DNS, heure, interfaces, routes ou services système.
+- *Ce qui reste permis.* Créer le réseau `peaas` (`docker network create`, avec les règles NAT que Docker pose lui-même). Publier les trois ports inter-sites, et les interfaces d'administration sur `127.0.0.1` (contrat de site, clauses R). Poser droits et propriétaires dans son dossier (`data/`, `chown` vers l'uid de l'image).
+- *Sortie vers Internet.* Le cloisonnement se fait dans le package : les conteneurs du site sont sur un réseau Docker interne, sans route vers l'extérieur. Seuls Solace (liens DMR vers les pairs du profil) et le module d'accès Internet sont aussi reliés à un réseau qui sort. Le module devient un composant du socle, installé dans chaque package : toute sortie Internet des autres conteneurs passe par lui. Il journalise et rend la sortie observable par le centre (gouvernance, détection d'une mauvaise utilisation). Il n'interdit rien par défaut.
+- *Mise à jour depuis le centre.* Les images et tout ce que le package fournit sur un site doivent pouvoir être mis à jour depuis la plateforme centrale. Un miroir d'images n'est pas exigé ; c'est une manière parmi d'autres. Mécanisme à concevoir (bloc C) ; D-035 et D-045 (une commande lancée par l'opérateur sur chaque site) seront amendées quand il sera choisi.
+- *Agent de site.* L'agent n'est pas limité à la lecture : il peut agir (appliquer une mise à jour, relancer un composant), mais seulement sur ce que fournit le package — objets portant `peaas.site=<id>` ou reliés au réseau du package. Une action hors de ce périmètre n'est faite que si elle est nécessaire ; elle est alors nommée, journalisée, et inscrite à ce journal avant d'être codée.
+- *Ce que la machine doit fournir.* DNS, NTP, LLMNR et mDNS coupés, adresse de topologie : prérequis de la machine (D-019), vérifiés par `install.sh`, jamais corrigés par lui. Les vérifications existantes gardent leur niveau (arrêt : conteneurs, adresse, mémoire, images, machine dédiée ; avertissement : système, NTP, disque), et `install.sh` dit en clair à l'opérateur ce qu'il attend de la machine.
+- *Avertissements « à regarder ».* Une nouvelle observation sur la configuration de l'hôte n'arrête pas l'installation et n'entre pas dans le contrat : `install.sh` la signale (« à regarder : … »), et Lord décide ensuite si elle devient essentielle. Premier cas : les ports publiés par Docker contournent un éventuel pare-feu de l'hôte (UFW, nftables) ; `install.sh` liste les ports publiés et le signale.
+**Raison.** En entreprise, la machine appartient à une autre équipe (D-019) : un package qui réécrit son pare-feu ou ses réglages réseau entre en conflit avec elle. La gouvernance voulue par D-044 s'obtient en tenant ce que le package possède : ses réseaux et sa porte de sortie.
+**Écarté.** Pare-feu de sortie posé par `install.sh` (B1 du 19/11). Script `preparer-hote.sh` lancé en root (même effet sur l'hôte, seulement déplacé). `registry-mirrors` dans `daemon.json`. Proxy réglé au niveau du système ou du démon Docker. Agent limité à la lecture.
+**Limite assumée.** Solace et le module d'accès Internet sortent sans filtrage de l'hôte : rien n'empêche l'un d'eux de joindre une adresse non prévue. Les deux sont fournis par le package ; le volet « sortie » du filet le vérifie.
+**Touche.** D-019 (précisée), D-044 (cloisonnement, miroir), D-046 (B1, B2, B3, B5 révisés), D-035 et D-045 (à amender avec le mécanisme de mise à jour), contrat de site (clause de réseau interne à ajouter en C1).
+**Statut.** Retenu (Lord, 22/11). À appliquer dans les blocs P et C.
 
 ---
 
