@@ -735,6 +735,7 @@ La restructuration se fait par marches (M0 à M7). Une marche qui ne change pas 
 **Limite assumée.** Solace et le module d'accès Internet sortent sans filtrage de l'hôte : rien n'empêche l'un d'eux de joindre une adresse non prévue. Les deux sont fournis par le package ; le volet « sortie » du filet le vérifie.
 **Touche.** D-019 (précisée), D-044 (cloisonnement, miroir), D-046 (B1, B2, B3, B5 révisés), D-035 et D-045 (à amender avec le mécanisme de mise à jour), contrat de site (clause de réseau interne à ajouter en C1).
 **Statut.** Retenu (Lord, 22/11). À appliquer dans les blocs P et C.
+**Implémenté en partie (22/11).** P1, P2, P3, C1 et C3 faits (PEaaSrepo `96e185c`, générateur `1cb3474` et `4de478f`) ; filet complet 22/22 (`filet-20261122t131752z-e5f58e`). Choix d'exécution : doc 09 (22/11). Contrat de site v2 : clause R5, exception O3 nommée pour `docker-ro`, 29 clauses. Reste C2 (mise à jour pilotée depuis le centre). Deux points pour Lord : APISIX (flux 2) et pgAdmin (flux 3) n'ont plus de sortie directe vers les pairs ; le client applicatif ne peut plus s'abonner aux jokers qui recouvrent `peaas/_ctrl/` (`#`, `peaas/#`).
 
 ---
 

@@ -910,3 +910,22 @@ absence prouvée), puis `9b9e862`. Base SMRP relevée à chaque temps
   un pair retiré, « lien DMR existant PAS supprimé (à nettoyer à la
   main) », faux depuis G2. Remplacé par une information exacte ; la ligne
   SUCCES nomme les pairs retirés (générateur `9b9e862`, 467 tests).
+
+## 22/11/2026 — Plan de contrôle et cloisonnement (P1-P3, C1, C3, D-047)
+
+- Essai réseau (site-b, réseau jetable) : sans NAT de sortie
+  (`enable_ip_masquerade=false`), `wget http://1.1.1.1` échoue ; port publié
+  depuis ce réseau joint en local et depuis site-a. Résolution DNS toujours
+  possible (par le démon Docker) : limite connue.
+- Essai P1 (site-b, broker réel) : client applicatif refusé en abonnement
+  sur `peaas/_ctrl/#`, `#`, `peaas/#`, `peaas/+/#` ; sa publication dans
+  `peaas/_ctrl/site-b/etat` n'est pas livrée à l'agent ; agent refusé sur
+  l'espace d'un autre site, sa publication hors de son espace non livrée.
+- Filet complet `filet-20261122t130344z-2b7e40` : site-a et site-b verts,
+  site-p refusé à la génération (O1 : un commentaire de `1-infra.sh` citait
+  un site), corrigé (`4de478f`).
+- site-p réinstallé puis vérification `filet-20261122t131752z-e5f58e` :
+  **22/22**. Installation : site-a 216 s, site-b 217 s, site-p 211 s
+  (réseaux recréés, conteneurs recréés). Sonde du centre : 2 à 3 ms.
+- SMRP après réinstallation des trois brokers : 0 file sur les trois sites,
+  pas de redémarrage nécessaire.

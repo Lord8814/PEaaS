@@ -8,6 +8,8 @@ ou modifie ce contrat avec la décision qui le justifie (D-042).
 
 **Version 1 — 16/11/2026 (pilote, lot L1).** Décision : D-042.
 
+**Version 2 — 22/11/2026.** Décision : D-047 (le package ne gère que lui-même). Ajout de la clause R5 (réseaux du site, C1) ; exception nommée à O3 (vue Docker en lecture seule, B3). 29 clauses.
+
 Un site n'existe que par son package : l'archive `peaas-<id>.tar.gz` que le
 générateur produit pour lui. Ce document dit ce que cette archive doit être.
 Il est le pendant de D-019 : D-019 est le contrat de la machine hôte, celui-ci
@@ -97,9 +99,16 @@ Les interfaces d'administration, publiées sur `127.0.0.1` seulement :
 | **R2** | Seuls les ports des trois flux inter-sites sont publiés sur l'interface du site. Aucun service n'utilise `network_mode: host`. | chaque entrée `ports:` sans liaison locale doit être dans le premier tableau ; une interface d'administration publiée partout est jugée par R3 seule | SE6, D-018 | conforme |
 | **R3** | Les interfaces d'administration (second tableau) sont liées à `127.0.0.1`. | adresse de liaison de chaque entrée `ports:` du second tableau (`127.0.0.0/8`, `::1` ou `localhost`) | D-018 | conforme |
 | **R4** | Aucun autre port n'est publié : un port lié à `127.0.0.1` est une interface d'administration du second tableau. | chaque entrée `ports:` locale doit être dans le second tableau | SE6 | conforme depuis le 19/11 ; violée le 18/11 : `solace` publiait 55555, 1883, 8000, 5672, 9000 en local, sans consommateur sur l'hôte |
+| **R5** | Le compose ne déclare que les réseaux `peaas` et `peaas-sortie`. Chaque service est relié à `peaas` ; seuls `solace` (liens DMR) et `acces-internet` (module d'accès Internet) sont reliés à `peaas-sortie`. | `networks` du compose et de chaque service (liste ou table) | C1, D-047 | conforme depuis le 22/11 |
 
 Ajouter un port publié, c'est modifier un de ces deux tableaux, donc ce
 contrat, avec la décision qui le justifie.
+
+Ce que R5 ne juge pas : que `peaas` soit créé **sans NAT de sortie** et
+`peaas-sortie` avec (`install.sh`, phase `1-infra.sh`, étape 3). C'est un
+comportement de l'installation, vérifié sur les sites par le filet (point
+« sortie » : depuis le réseau `peaas`, Internet n'est joignable que par le
+module). Ajouter un service à `peaas-sortie`, c'est modifier R5.
 
 ## 4. Images
 
@@ -138,7 +147,7 @@ Chaque site traite les autres comme distants.
 |---|---|---|---|---|
 | **O1** | Aucune adresse ni aucun nom de pair hors de `site-profile.yaml`. | recherche de chaque `host_address`, `id` et `dmr_node_name` de `peers` dans toutes les autres entrées texte | règle d'isolation, D-012 | conforme |
 | **O2** | Aucun `extra_hosts`, `links` ni `external_links` dans le compose. | compose | règle d'isolation, D-031 | conforme |
-| **O3** | Aucun volume hors du dossier du site : chaque source de volume est un chemin relatif `./…` sans `..`. Pas de chemin absolu, pas de volume nommé, pas de socket Docker. | section `volumes` de chaque service | D-009 | conforme |
+| **O3** | Aucun volume hors du dossier du site : chaque source de volume est un chemin relatif `./…` sans `..`. Pas de chemin absolu, pas de volume nommé, pas de socket Docker. **Exception nommée** : le service `docker-ro`, et lui seul, monte `/var/run/docker.sock:/var/run/docker.sock:ro` (vue en lecture seule des conteneurs du package, B3, D-047). | section `volumes` de chaque service | D-009, D-047 | conforme |
 | **O4** | Le package ne porte aucune source de tirage vers le plan de contrôle : pas de `.peaas/update.conf`. | noms des entrées | D-035 (D-016 remplacé) | conforme (le générateur n'émet plus ce fichier depuis IN1 M6 ; la clause garde qu'il ne revienne pas) |
 
 Non vérifiable sur l'archive, donc hors contrat : l'absence d'entrée `hosts`
@@ -196,6 +205,14 @@ une fois ces cinq clauses au vert.
 Le générateur en service tourne en mode **bloquant** depuis le 19/11
 (`PEAAS_CONTRAT_MODE=bloquant` dans `webapp/.env`, propre à l'hôte). Le défaut
 du code reste `rapport`, pour un générateur neuf.
+
+## Bilan au 22/11/2026
+
+**29/29 conformes** sur les trois packages de la topologie (`site-a`,
+`site-b`, `site-p`), générateur `4de478f`, catalogue `96e185c` (D-047 :
+socle obligatoire `agent`, `docker-ro`, `acces-internet` ; clause R5).
+Filet complet 22/22 (`filet-20261122t131752z-e5f58e`), points « sortie »
+et « contrôle » compris.
 
 ## Utiliser le validateur
 

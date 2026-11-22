@@ -184,3 +184,22 @@ annuaire et relais pour les consommateurs hors fédération (doc 13 § 4).
   complet `filet-20261120t160027z-ca2202`.
 
 **Bloc G terminé.** **Ensuite** : bloc P (P1 : ACL Solace `peaas-agent`).
+
+**Bloc P fait, C1 et C3 faits (22/11)** : PEaaSrepo `96e185c`, générateur
+`1cb3474`, `4de478f`. Choix d'exécution : doc 09 (22/11).
+- P1 : profils ACL `peaas-app` et `peaas-agent` (`solace.sh`), prouvés sur le
+  broker réel de site-b par clients MQTT.
+- P2 : `agent` (état toutes les 60 s, sonde, métriques :9464) et `docker-ro`
+  (seule vue du socket, une route filtrée sur le label du site).
+- P3 : l'agent du centre est collecteur ; Prometheus du site le lit ;
+  tableau de bord « PEaaS — graphe de la fédération » dans Grafana (B4).
+- C1 : `peaas` (.0/25) sans NAT de sortie, `peaas-sortie` (.128/26) avec ;
+  seuls Solace et `acces-internet` y sont reliés (clause R5).
+- C3 : `acces-internet` (Squid), seule sortie Internet, journalisée ; l'agent
+  signale chaque domaine au centre, déclaré ou non (B5), sans rien refuser.
+- Filet : points « sortie » et « contrôle ». Complet 22/22
+  (`filet-20261122t131752z-e5f58e`) ; SMRP sain
+  sur les trois sites après réinstallation (aucune file, aucune entrée figée).
+- 487 tests verts.
+
+**Ensuite** : C2 (mise à jour pilotée depuis le centre, D-045 amendée).
