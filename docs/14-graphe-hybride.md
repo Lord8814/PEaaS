@@ -202,4 +202,22 @@ annuaire et relais pour les consommateurs hors fédération (doc 13 § 4).
   sur les trois sites après réinstallation (aucune file, aucune entrée figée).
 - 487 tests verts.
 
-**Ensuite** : C2 (mise à jour pilotée depuis le centre, D-045 amendée).
+**C2 fait (22/11)** — D-048. PEaaSrepo `db5b98b`, `012e57e`, `de5e302` ;
+générateur `d0d1fa7`, `9f0cdfd`, `1474bc3`, `2f8b97f`.
+- `update-site.sh --archive` : package complet du même site, `.env`,
+  `certs/` et données gardés, `install.sh`, restauration automatique.
+- `POST /api/package` avec `mise_a_jour` : ni identifiant ni certificat.
+- `deployer.js --sites … | --tous` (VM du générateur) : ordres signés
+  Ed25519 (`/srv/peaas-ordres`), publiés par l'agent du centre, résultats
+  attendus site par site. L'agent vérifie (signature, destinataire,
+  empreinte, rejeu) ; `executeur` lance `update-site.sh --archive` sur
+  l'hôte (nsenter, sous le propriétaire du site).
+- Contrat : clause O5 (aucun service privilégié sauf l'exécuteur), I3-I5
+  pour la mise à jour ; 30 clauses.
+- Preuves : deux mises à jour du centre appliquées sur les trois sites (la
+  première a révélé un défaut de droits de la file, corrigé et livré par la
+  seconde, sans intervention) ; ordre mal signé refusé ; mise à jour cassée
+  restaurée ; voie locale sur site-a.
+
+**Blocs G, P et C terminés.** Reste du doc 13 : certificats 90 jours et
+révocation (lot suivant).

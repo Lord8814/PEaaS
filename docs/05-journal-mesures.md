@@ -929,3 +929,25 @@ absence prouvée), puis `9b9e862`. Base SMRP relevée à chaque temps
   (réseaux recréés, conteneurs recréés). Sonde du centre : 2 à 3 ms.
 - SMRP après réinstallation des trois brokers : 0 file sur les trois sites,
   pas de redémarrage nécessaire.
+
+## 22/11/2026 — Mise à jour depuis le centre (C2, D-048)
+
+- Clé d'ordres créée (`deployer.js --creer-cle`) dans `/srv/peaas-ordres`
+  (créé par Lord avec sudo) ; le générateur ne voit que `public/`.
+- Filet complet `filet-20261122t145547z-fd748d` : 30/31, un échec
+  (`contrôle` site-a : sortie non vue au centre, signal perdu pendant la
+  réinstallation du centre). Corrigé : l'agent republie ses totaux cumulés.
+- 1re mise à jour du centre (`deployer.js --tous`, 11 min) : appliquée sur
+  les trois sites, mais l'agent est resté en boucle sur `resultats/` créé par
+  l'exécuteur (root). Débloqué à la main (`chown`), corrigé (`de5e302`).
+- 2e mise à jour du centre : **appliquée sur les trois sites sans aucune
+  intervention**, et elle a livré la correction de l'agent.
+- Ordre signé par une autre clé (site-a) : **refusé** (« signature invalide »).
+- Mise à jour cassée (site-b, image introuvable) : `install.sh` arrêté au
+  contrat de machine, **version précédente restaurée et réinstallée** en
+  2 min ; 12 conteneurs sains.
+- Voie locale (site-a) : `./update-site.sh --archive` avec le package de
+  mise à jour copié à la main : SUCCES, exécuteur épargné, aucun certificat
+  dans le package.
+- Filet complet final `filet-20261122t152755z-c0c398` : **31/31** (contrat
+  30/30 sur les trois packages, exécuteur rechargé par la réinstallation).

@@ -10,6 +10,8 @@ ou modifie ce contrat avec la décision qui le justifie (D-042).
 
 **Version 2 — 22/11/2026.** Décision : D-047 (le package ne gère que lui-même). Ajout de la clause R5 (réseaux du site, C1) ; exception nommée à O3 (vue Docker en lecture seule, B3). 29 clauses.
 
+**Version 3 — 22/11/2026.** Décision : D-048 (mise à jour depuis le centre). Clause O5 (aucun service privilégié ni dans l'espace de l'hôte, sauf l'exécuteur) ; package de mise à jour (`.peaas/mise-a-jour`) : I3 exige qu'il n'ait aucun `certs/`, I4 aucune clé privée, I5 sans objet. 30 clauses.
+
 Un site n'existe que par son package : l'archive `peaas-<id>.tar.gz` que le
 générateur produit pour lui. Ce document dit ce que cette archive doit être.
 Il est le pendant de D-019 : D-019 est le contrat de la machine hôte, celui-ci
@@ -148,6 +150,7 @@ Chaque site traite les autres comme distants.
 | **O1** | Aucune adresse ni aucun nom de pair hors de `site-profile.yaml`. | recherche de chaque `host_address`, `id` et `dmr_node_name` de `peers` dans toutes les autres entrées texte | règle d'isolation, D-012 | conforme |
 | **O2** | Aucun `extra_hosts`, `links` ni `external_links` dans le compose. | compose | règle d'isolation, D-031 | conforme |
 | **O3** | Aucun volume hors du dossier du site : chaque source de volume est un chemin relatif `./…` sans `..`. Pas de chemin absolu, pas de volume nommé, pas de socket Docker. **Exception nommée** : le service `docker-ro`, et lui seul, monte `/var/run/docker.sock:/var/run/docker.sock:ro` (vue en lecture seule des conteneurs du package, B3, D-047). | section `volumes` de chaque service | D-009, D-047 | conforme |
+| **O5** | Aucun service n'est privilégié ni n'entre dans un espace de noms de l'hôte (`privileged`, `pid`, `ipc` ou `userns_mode: host`, `cap_add`). **Exception nommée** : `executeur`, `privileged` et `pid: host`, rien d'autre (applique les mises à jour sur l'hôte ; l'équivalent de root, accepté par Lord). | champs du service | C2, D-048 | conforme depuis le 22/11 |
 | **O4** | Le package ne porte aucune source de tirage vers le plan de contrôle : pas de `.peaas/update.conf`. | noms des entrées | D-035 (D-016 remplacé) | conforme (le générateur n'émet plus ce fichier depuis IN1 M6 ; la clause garde qu'il ne revienne pas) |
 
 Non vérifiable sur l'archive, donc hors contrat : l'absence d'entrée `hosts`
@@ -213,6 +216,11 @@ du code reste `rapport`, pour un générateur neuf.
 socle obligatoire `agent`, `docker-ro`, `acces-internet` ; clause R5).
 Filet complet 22/22 (`filet-20261122t131752z-e5f58e`), points « sortie »
 et « contrôle » compris.
+
+## Bilan au 22/11/2026 (version 3)
+
+**30/30 conformes** sur les trois packages (générateur `2f8b97f`, catalogue
+`de5e302`). Filet complet 31/31 (`filet-20261122t152755z-c0c398`).
 
 ## Utiliser le validateur
 

@@ -739,6 +739,22 @@ La restructuration se fait par marches (M0 à M7). Une marche qui ne change pas 
 
 ---
 
+## D-048 — Mise à jour des sites depuis le centre : ordres signés, exécuteur du package (C2)
+**Date.** 22/11/2026 (Lord : « oui pour tous » aux cinq points de la proposition C2).
+**Décision.**
+- *Une commande, deux voies.* `update-site.sh --archive` applique un package complet du même site : extraction à part, refus d'un autre site ou d'une identité modifiée, sauvegarde, remplacement des fichiers du package (`.env`, `certs/` et données gardés ; une variable nouvelle du `.env` est ajoutée, jamais une valeur réécrite), `install.sh`, et **restauration automatique** en cas d'échec. Lancée sur le site par l'opérateur, ou par l'exécuteur sur ordre du centre.
+- *Package de mise à jour sans secret.* `POST /api/package` avec `mise_a_jour: true` : ni identifiant ni certificat, marqué `.peaas/mise-a-jour`. Le contrat en tient compte (I3 : aucun `certs/` ; I4 : aucune clé privée ; I5 sans objet).
+- *Ordres signés.* `deployer.js` (VM du générateur) produit pour chaque site un ordre `{ manifeste, signature, archive }` signé Ed25519 par la clé d'ordres de `/srv/peaas-ordres` (hors dépôt ; le générateur ne voit que la clé publique, dans `public/`). La clé publique est livrée à chaque site (`.peaas/cle-ordres.pub.pem`). L'agent refuse une signature fausse, un autre destinataire, une archive altérée et tout rejeu (ordre déjà reçu ou plus ancien que le dernier accepté).
+- *Transport.* `deployer.js` lit par SSH, sur l'agent du centre, les composants en place de chaque site (dernier état reçu), demande les packages au générateur, signe, puis fait publier les ordres par l'agent du centre sur `peaas/_ctrl/<site>/ordre` (lien central ouvert par le site : aucun port entrant). Un site, une liste ou `--tous`. Le résultat de chaque site (`accepte`, puis `applique`, `echec` ou `refuse`) remonte sur `peaas/_ctrl/<site>/ordre/resultat` et est attendu par `deployer.js`.
+- *Exécution sur le site.* L'agent vérifie et dépose l'ordre dans une file ; le service `executeur` lance la seule commande `./update-site.sh --archive` **sur l'hôte**, par `nsenter` dans les espaces de noms du processus 1, sous le propriétaire du dossier du site (`runuser`, jamais root). L'exécuteur n'est pas recréé sous lui-même pendant la mise à jour.
+**Raison.** Déploiement de masse depuis un seul endroit (Lord, 22/11), sans secret sur le fil et sans port entrant. Une seule commande pour les deux voies : ce qui est prouvé sur le site l'est pour le centre.
+**Écart avec la proposition, consigné.** La proposition donnait à l'exécuteur le socket Docker en écriture. L'image Docker officielle n'a pas bash, et les scripts du package ont besoin du contexte de l'hôte (bash, curl, SEMP sur 127.0.0.1, adresse de l'hôte). L'exécuteur est donc **privilégié et dans l'espace de processus de l'hôte** (`privileged`, `pid: host`) : même pouvoir réel, l'équivalent de root sur la machine, accepté par Lord. Exception nommée à la nouvelle clause O5 du contrat (aucun service privilégié, sauf l'exécuteur).
+**Écarté.** Exécuteur avec socket Docker et image construite à l'installation (image non épinglée, clause M1). Agent exécutant lui-même (il garde son rôle de vérificateur). Service systemd sur l'hôte (D-047). Tirage par le site (D-035, O4).
+**Limite assumée.** La protection repose sur la clé d'ordres : qui la détient peut mettre à jour tous les sites. Sa rotation impose de livrer la nouvelle clé publique à chaque site.
+**Statut.** Retenu (Lord, 22/11). **Implémenté et prouvé sur le banc (22/11)** : PEaaSrepo `db5b98b`, `012e57e`, `de5e302` ; générateur `d0d1fa7`, `9f0cdfd`, `1474bc3`, `2f8b97f`. Deux mises à jour lancées du centre sur les trois sites, appliquées ; ordre signé par une autre clé refusé ; mise à jour cassée (image introuvable) restaurée ; même commande lancée sur site-a en local. Détail : doc 05 et doc 14.
+
+---
+
 ## D-XXX — *(modèle)*
 **Décision.**
 **Raison.**
