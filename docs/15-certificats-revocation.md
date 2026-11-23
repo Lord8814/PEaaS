@@ -48,7 +48,7 @@ Trois conséquences :
 | E8 | L'archive complète porte la CRL courante (`certs/federation.crl.der`) ; `solace-dmr.sh` n'active le contrôle que lorsque Solace a chargé une CRL valide. Un site installé avant ce lot reste sans contrôle jusqu'à sa première CRL. | Un site neuf sans CRL n'aurait aucun lien (§ 1). |
 | E9 | Révoquer **un site** : révoquer son certificat en service, puis retirer ses liens de la topologie (G4). Révoquer **un certificat compromis** : révoquer sa série, puis `renouveler.js --forcer` sur ce site. Le pair refuse à la connexion suivante ; le recyclage du § 1 la provoque tout de suite. | D-044 : « le pair refuse la connexion à la prochaine tentative, sans intervention sur le site révoqué ». |
 | E10 | **Observation** : l'agent publie dans son état la série, la fin et les jours restants de son certificat, et le numéro et la fin de sa CRL ; le collecteur en fait des métriques, le tableau de bord du centre les montre (seuils 30 et 14 jours) ; le filet gagne un point « certificats ». L'alerte proprement dite reste à OP4 (lot L3). | Lord, 19/11 : alerte à J-14. |
-| E11 | **Contrat de site v4** : I6, le certificat du site dure au plus 90 jours ; I7, l'archive complète porte une CRL signée par la CA, non expirée. | Ce qui est exigé doit être vérifié avant de livrer. |
+| E11 | **Contrat de site v4** : I3 attend aussi `certs/federation.crl.der` ; I7, le certificat du site dure au plus 90 jours ; I8, l'archive complète porte une CRL signée par l'autorité livrée, valable encore 14 jours au moins. 32 clauses. | Ce qui est exigé doit être vérifié avant de livrer. |
 | E12 | `/srv/peaas-ca` gagne un dossier `crl/` (révocations, numéro, dernière CRL). Une clé de site remplacée par un renouvellement est **mise de côté** (`site.key.pem.remplacee-<date>`), jamais supprimée : la génération suivante d'une archive complète émet une nouvelle paire. | Une archive complète ne doit jamais livrer une clé qui ne va pas avec le certificat (I4). |
 
 **Secours.** Si une CRL expirait (centre absent plus de 60 jours) : sur
@@ -68,8 +68,37 @@ et les liens remontent. Le geste est dans le guide d'exploitation.
 
 | Marche | Contenu |
 |---|---|
-| K1 | Générateur : 90 jours, raison « durée hors politique », émission depuis une CSR, CRL (`crl.js`), CRL dans l'archive, contrat I6 et I7. |
+| K1 | Générateur : 90 jours, raison « durée hors politique », émission depuis une CSR, CRL (`crl.js`), CRL dans l'archive, contrat I3, I7 et I8. |
 | K2 | Agent : certificat et CRL lus et publiés, CSR et preuve, ordres typés (`certificat`, `revocations`, `renouveler`), CRL servie à Solace ; collecteur : demandes et métriques. |
 | K3 | Exécuteur et `update-site.sh` : `--certificat` et `--crl` ; `solace-dmr.sh` : contrôle de révocation activé seulement quand une CRL valide est chargée. |
 | K4 | `renouveler.js` et `revoquer.js` (VM du générateur), crontab. |
 | K5 | Banc (après accord D-033) : migration des trois sites vers des certificats de 90 jours par renouvellement forcé, révocation de l'ancien certificat de site-a et preuve du refus, filet complet. |
+
+## 5. Avancement
+
+**K1 à K4 faits le 23/11** (générateur `7d03ae3`, `8c633b5`, `527fbb8` ;
+catalogue `e76e1ba`, `44a361b`, `930cf3e`). 531 tests. Contrat v4,
+32 clauses. Nouveaux fichiers : `crl.js`, `renouvellement.js`,
+`renouveler.js`, `revoquer.js` (générateur) ; filet : point « certificats ».
+
+Livré sur le banc par trois mises à jour du centre (doc 05, 23/11). En
+route, deux défauts de l'exécuteur de C2, corrigés : battement figé pendant
+un ordre (la mise à jour était jugée en échec), et script jamais rechargé
+avant une réinstallation. Le second a demandé une dernière relance à la main
+(E-14, doc 07).
+
+Filet `filet-20261123t160938z-0bb05f` : 22 ok, 3 échecs attendus au point
+« certificats » (certificats de 764 et 804 jours, aucune CRL).
+
+**K5 attend l'accord de Lord (D-033)**, parce qu'il écrit dans
+`/srv/peaas-ca` et signe avec la clé de la CA :
+1. `node revoquer.js --republier` : première CRL (`/srv/peaas-ca/crl/`),
+   diffusée aux trois sites ; contrôle de révocation actif.
+2. `node renouveler.js --forcer --tous` : certificats de 90 jours, clé
+   fabriquée sur chaque site ; ancienne clé mise de côté dans le magasin.
+3. Preuve de la révocation : `node revoquer.js --site site-a --raison
+   "essai K5"` : site-p doit refuser site-a. Puis réinstallation de site-a
+   par une archive complète (filet complet) : nouvelle paire, liens rétablis.
+4. Crontab de `lord` sur la VM du générateur : `renouveler.js --tous` chaque
+   jour, `revoquer.js --republier` chaque semaine.
+5. Filet complet.

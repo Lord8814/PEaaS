@@ -423,6 +423,21 @@ attendu dans le navigateur : CA de la fédération inconnue, SAN sans
 
 ---
 
+## E-14 — 23/11 — Exécuteurs relancés à la main (amorçage, D-049)
+
+**Constat.** L'exécuteur est épargné pendant une mise à jour : son conteneur
+garde le script monté à sa création (montage d'un fichier, ancien inode).
+Les trois exécuteurs tournaient encore le code du 22/11, qui ne connaît ni
+les ordres typés (`certificat`, `revocations`) ni le battement séparé.
+
+**Geste.** Après la mise à jour `maj-20261123t160652z-*` (catalogue
+`930cf3e`), `docker restart executeur` sur site-a, site-b et site-p, une fois.
+
+**Correctif, pour ne plus le refaire.** Depuis `930cf3e`, l'exécuteur compare
+entre deux ordres son script à celui du package sur l'hôte et s'arrête s'il
+a changé : Docker le relance avec le nouveau. Ce relancement à la main est
+le dernier.
+
 ## Récapitulatif pour le lot de corrections
 
 | Entrée | Correction | Tâche du lot | Statut |

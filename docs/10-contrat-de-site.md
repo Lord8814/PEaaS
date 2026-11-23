@@ -12,6 +12,8 @@ ou modifie ce contrat avec la décision qui le justifie (D-042).
 
 **Version 3 — 22/11/2026.** Décision : D-048 (mise à jour depuis le centre). Clause O5 (aucun service privilégié ni dans l'espace de l'hôte, sauf l'exécuteur) ; package de mise à jour (`.peaas/mise-a-jour`) : I3 exige qu'il n'ait aucun `certs/`, I4 aucune clé privée, I5 sans objet. 30 clauses.
 
+**Version 4 — 23/11/2026.** Décision : D-049 (certificats de 90 jours, révocation par CRL). I3 attend aussi `certs/federation.crl.der` ; clauses I7 (certificat du site de 90 jours au plus) et I8 (CRL signée par l'autorité livrée, valable encore 14 jours au moins). Package de mise à jour : I7 et I8 sans objet (le site garde son certificat et sa CRL). 32 clauses.
+
 Un site n'existe que par son package : l'archive `peaas-<id>.tar.gz` que le
 générateur produit pour lui. Ce document dit ce que cette archive doit être.
 Il est le pendant de D-019 : D-019 est le contrat de la machine hôte, celui-ci
@@ -67,9 +69,11 @@ Ce qui varie d'un site à l'autre se limite à `site-profile.yaml`, `.env` et
 |---|---|---|---|---|
 | **I1** | `site-profile.yaml` est présent et complet : `site.id`, `site.index` (entier), `site.docker_subnet`, `site.host_address`, `site.dmr_node_name`, `dmr_cluster_name`, `peers` (liste). | lecture YAML | D-009, D-005 | conforme |
 | **I2** | `.env` est présent, en mode 0600, et porte `SITE_ID`, `SITE_DMR_NODE_NAME` et `PEAAS_DOCKER_SUBNET` égaux au profil. | mode et valeurs (seules ces trois valeurs, non secrètes, sont lues) | D-009, D-011 | conforme |
-| **I3** | `certs/` contient exactement `site.key.pem` (0600), `site.crt.pem` et `federation-ca.crt.pem`. | noms et mode | D-006 | conforme |
+| **I3** | `certs/` contient exactement `site.key.pem` (0600), `site.crt.pem`, `federation-ca.crt.pem` et, depuis la v4, `federation.crl.der`. | noms et mode | D-006, D-049 | conforme |
 | **I4** | L'archive contient une seule clé privée : celle du site. Jamais la clé de l'autorité, jamais celle d'un autre site. La clé correspond au certificat du site. | recherche de tout bloc `PRIVATE KEY` dans toutes les entrées ; comparaison des clés publiques | D-006 | conforme |
 | **I5** | Le certificat du site est signé par l'autorité livrée dans `certs/`, n'est pas expiré, et ses SAN portent le nom de nœud DMR du site et son adresse déclarée. | lecture X.509 | D-006, D-013 | conforme |
+| **I7** | Le certificat du site est valable 90 jours au plus. | lecture X.509 (`notBefore`, `notAfter`) | D-044, D-049 | nouvelle (v4) |
+| **I8** | `certs/federation.crl.der` est une CRL signée par l'autorité livrée, valable encore 14 jours au moins. Sans CRL valide, le broker refuse tous les liens DMR (essai du 23/11). | lecture DER de la CRL, signature vérifiée par la clé publique de l'autorité | D-049 | nouvelle (v4) |
 | **I6** | Chaque service du compose porte le label `peaas.site`. Le réseau `peaas` le porte aussi : dans le compose, ou à sa création par `install.sh`. | compose ; à défaut, `docker network create … --label peaas.site=` dans `install.sh` ou ses phases (`scripts/install/`, depuis IN1 M4) | D-019 | conforme (réseau : par `scripts/install/1-infra.sh`) |
 
 ## 3. Réseau

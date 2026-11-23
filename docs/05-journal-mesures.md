@@ -980,3 +980,26 @@ Ni le banc ni `/srv/peaas-ca` n'ont servi.
 
 Conséquences : D-049 (CRL toujours présente sur le site, 60 jours, recyclage
 des liens après une nouvelle CRL, secours par le mode global).
+
+## 23/11/2026 — Code D-049 livré sur le banc par le centre (K1-K4)
+
+- 1re mise à jour du centre (`deployer.js --tous`, générateur `7d03ae3`,
+  catalogue `e76e1ba`) : **échec sur les trois sites**, restauration en échec
+  aussi. Cause : l'exécuteur, épargné, ne tenait plus son battement pendant
+  l'ordre (boucle bloquée sur la commande) ; jugé `unhealthy` à l'étape 9
+  d'`install.sh`. Les sites sont restés sains sur la version du 22/11
+  (12, 12 et 11 conteneurs sains, liens centraux montés, SMRP sans file).
+  Défaut présent depuis D-048 : il n'apparaissait pas tant que
+  l'installation durait moins que la fenêtre du healthcheck.
+- Corrigé deux fois : `install.sh` ne juge plus la santé du service épargné
+  (`8c633b5`), l'exécuteur bat à part de sa boucle (`44a361b`).
+- 2e mise à jour du centre : **appliquée sur les trois sites** ; le résumé
+  renvoyé au centre est bien la ligne `SUCCES` (point ouvert du 22/11).
+- Exécuteur qui se relance quand la mise à jour livre un nouveau script
+  (`930cf3e`), livré par une 3e mise à jour (appliquée partout, 121 à 130 s),
+  puis exécuteurs relancés une fois à la main (E-14, doc 07).
+- Agents : certificat et CRL publiés au centre (vue `/certificats`) :
+  site-a et site-b 764 jours, site-p 804 jours, aucune CRL.
+- Filet `filet-20261123t160938z-0bb05f` (vérification seule) : **22 ok,
+  3 échecs, tous au point « certificats »**, attendus avant K5 : certificats
+  de plus de 90 jours, aucune CRL, contrôle de révocation inactif.
