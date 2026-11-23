@@ -768,7 +768,7 @@ La restructuration se fait par marches (M0 à M7). Une marche qui ne change pas 
 **Écarté.** Clé fabriquée au centre et chiffrée pour le site (un secret voyage, même chiffré). Révocation par l'agent qui coupe lui-même les liens (le broker le fait, prouvé). OCSP (un répondeur à tenir en ligne au centre : la panne du centre couperait tout). CRL de 7 jours (une panne du centre d'une semaine ferait tomber la fédération).
 **Limite assumée.** Contrôle fermé par défaut : une CRL expirée coupe tous les liens du site. Secours nommé : `authClientCertRevocationCheckMode: none` sur le broker.
 **Touche.** D-006 et D-013 (émission depuis une CSR, durée), D-033 (arrêt avant la première écriture réelle dans `/srv/peaas-ca`), D-044 (§ 6 du doc 13), D-048 (ordres typés).
-**Statut.** Retenu (go de Lord, 23/11). En cours : K1 à K4 ; K5 (banc) après accord de Lord pour l'autorité (D-033).
+**Statut.** Retenu (go de Lord, 23/11). **Implémenté et prouvé sur le banc (23/11)** : générateur 7d03ae3 à 6540219, catalogue e76e1ba à ca0ebd3. Certificats de 90 jours sur les trois sites, révocation de site-a refusée par site-p, réinstallation, filet 25/25 (filet-20261123t170117z-4960c4). Détail : doc 05 et doc 15.
 
 ---
 

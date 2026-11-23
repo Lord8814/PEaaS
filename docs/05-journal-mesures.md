@@ -1003,3 +1003,35 @@ des liens après une nouvelle CRL, secours par le mode global).
 - Filet `filet-20261123t160938z-0bb05f` (vérification seule) : **22 ok,
   3 échecs, tous au point « certificats »**, attendus avant K5 : certificats
   de plus de 90 jours, aucune CRL, contrôle de révocation inactif.
+
+## 23/11/2026 — K5 : certificats de 90 jours et révocation sur le banc (D-049)
+
+Accord de Lord (« go ») ; les trois premières commandes signées par la CA ont
+été lancées par Lord lui-même (le classificateur de Claude Code refusait
+l'écriture dans `/srv/peaas-ca`), la suite par Claude sur son autorisation.
+
+- `revoquer.js --republier` : CRL n° 1 (60 jours), chargée par les trois
+  brokers, contrôle actif (`authClientCertRevocationCheckMode: crl`), liens
+  remontés sous contrôle. Résultat de site-a perdu au centre (QoS 0, liens
+  recyclés au même moment) alors que la CRL était en service : corrigé,
+  l'agent republie ses résultats 30 min (`ca0ebd3`).
+- `renouveler.js --forcer --tous` : demandes fabriquées sur les trois sites ;
+  puis arrêt sur un défaut (`siteProfile` recevait la topologie validée au
+  lieu du YAML brut, rien de signé), corrigé avec un test de `main()`
+  (`e31755b`).
+- `renouveler.js --tous` : trois certificats de 90 jours (fin 21/02/2027),
+  clé fabriquée sur chaque site ; posés en 142 à 146 s par site ; chaque
+  broker présente le nouveau certificat sur 55443 (`openssl s_client`).
+- `revoquer.js --site site-a --raison "essai K5"` : CRL n° 2. site-p refuse
+  site-a : « Unauthorized: Revocation Check Failed: CRL result: revoked »,
+  lien site-a ↔ site-p `Channel(s) Down` ; lien site-b ↔ site-p intact.
+- Réinstallation de site-a par archive complète (`filet.js --sites site-a`,
+  `filet-20261123t165623z-95357e`, 8 ok) : nouvelle paire (série
+  `5e32e1…`), contrat 32/32, lien vers site-p remonté. SMRP sain chez site-b
+  et site-p (0 en file).
+- Crontab de `lord` (VM du générateur) : `renouveler.js --tous` chaque jour à
+  3 h 17, `revoquer.js --republier` le lundi à 3 h 43, journal
+  `~/peaas-certificats.log`.
+- Correctif de l'agent livré à site-b et site-p (`deployer.js`), puis filet
+  `filet-20261123t170117z-4960c4` (vérification seule) : **25/25**, point
+  « certificats » au vert sur les trois sites (certificat 89 j, CRL 59 j).

@@ -102,3 +102,11 @@ Filet `filet-20261123t160938z-0bb05f` : 22 ok, 3 échecs attendus au point
 4. Crontab de `lord` sur la VM du générateur : `renouveler.js --tous` chaque
    jour, `revoquer.js --republier` chaque semaine.
 5. Filet complet.
+
+**K5 fait le 23/11** (doc 05). Révocation prouvée sur le banc (site-p
+refuse site-a révoqué), site-a réinstallé avec une nouvelle paire, crontab en
+place, filet 25/25 (`filet-20261123t170117z-4960c4`). Filet complet limité à
+site-a : sur site-b et site-p, une archive complète aurait remplacé sans
+raison la paire qu'ils venaient de recevoir (le magasin n'a plus leur clé).
+Défauts trouvés et corrigés : résultats perdus en QoS 0 (`ca0ebd3`),
+`siteProfile` (`e31755b`). Lot D-049 terminé.
