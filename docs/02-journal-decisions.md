@@ -737,6 +737,8 @@ La restructuration se fait par marches (M0 à M7). Une marche qui ne change pas 
 **Statut.** Retenu (Lord, 22/11). À appliquer dans les blocs P et C.
 **Implémenté en partie (22/11).** P1, P2, P3, C1 et C3 faits (PEaaSrepo `96e185c`, générateur `1cb3474` et `4de478f`) ; filet complet 22/22 (`filet-20261122t131752z-e5f58e`). Choix d'exécution : doc 09 (22/11). Contrat de site v2 : clause R5, exception O3 nommée pour `docker-ro`, 29 clauses. Reste C2 (mise à jour pilotée depuis le centre). Deux points pour Lord : APISIX (flux 2) et pgAdmin (flux 3) n'ont plus de sortie directe vers les pairs ; le client applicatif ne peut plus s'abonner aux jokers qui recouvrent `peaas/_ctrl/` (`#`, `peaas/#`).
 
+**Tranché (Lord, 23/11/2026).** Flux 2 (APISIX) et 3 (pgAdmin) : la sortie directe vers les pairs **n'est pas rouverte** ; R5 reste telle quelle. Jokers : la restriction est **gardée** (« logique ») ; une application s'abonne à ses propres topics, jamais à `#` ni à `peaas/#`.
+
 ---
 
 ## D-048 — Mise à jour des sites depuis le centre : ordres signés, exécuteur du package (C2)
@@ -752,6 +754,21 @@ La restructuration se fait par marches (M0 à M7). Une marche qui ne change pas 
 **Écarté.** Exécuteur avec socket Docker et image construite à l'installation (image non épinglée, clause M1). Agent exécutant lui-même (il garde son rôle de vérificateur). Service systemd sur l'hôte (D-047). Tirage par le site (D-035, O4).
 **Limite assumée.** La protection repose sur la clé d'ordres : qui la détient peut mettre à jour tous les sites. Sa rotation impose de livrer la nouvelle clé publique à chaque site.
 **Statut.** Retenu (Lord, 22/11). **Implémenté et prouvé sur le banc (22/11)** : PEaaSrepo `db5b98b`, `012e57e`, `de5e302` ; générateur `d0d1fa7`, `9f0cdfd`, `1474bc3`, `2f8b97f`. Deux mises à jour lancées du centre sur les trois sites, appliquées ; ordre signé par une autre clé refusé ; mise à jour cassée (image introuvable) restaurée ; même commande lancée sur site-a en local. Détail : doc 05 et doc 14.
+
+---
+
+## D-049 — Certificats de site de 90 jours, renouvelés par le site, et révocation par CRL
+**Date.** 23/11/2026 (Lord : « à la fin de la conception go sur les prochaines étapes »).
+**Décision.** Conception : `docs/15-certificats-revocation.md` (choix E1 à E12).
+- Certificats de site de 90 jours ; le site demande le renouvellement dès J-30 ; alerte à J-14 (D-044).
+- La nouvelle clé est fabriquée sur le site par l'agent ; seule une CSR remonte, avec une preuve signée par la clé en service. Le centre (`renouveler.js`, VM du générateur, crontab quotidienne) ne reprend de la CSR que la clé publique, met CN et SAN de la topologie, signe et renvoie le certificat par ordre signé (type `certificat`). `update-site.sh --certificat` pose, rejoue Solace, redémarre PostgreSQL, constate la fédération et restaure en cas d'échec.
+- Révocation : CRL X.509 signée par la CA, servie à Solace par l'agent et vérifiée par le broker sur les liens DMR. Valable 60 jours, re-signée chaque semaine, diffusée par ordre signé (type `revocations`) ; `update-site.sh --crl` la pose, fait recharger Solace et recycle les liens externes. L'archive complète porte la CRL courante.
+- Contrat de site v4 : I6 (certificat de 90 jours au plus), I7 (CRL signée par la CA, non expirée, dans l'archive complète).
+**Raison.** Essai du 23/11 sur deux brokers jetables (doc 05) : Solace refuse un certificat révoqué sur un lien DMR ; sans CRL valide (absente ou expirée), il refuse tous les liens ; la dernière CRL chargée survit à l'absence du serveur et au redémarrage du broker. D'où une CRL toujours présente sur le site et une durée qui couvre une panne du centre plus longue que la marge des certificats. Clé fabriquée sur le site : aucun secret sur le fil (D-048).
+**Écarté.** Clé fabriquée au centre et chiffrée pour le site (un secret voyage, même chiffré). Révocation par l'agent qui coupe lui-même les liens (le broker le fait, prouvé). OCSP (un répondeur à tenir en ligne au centre : la panne du centre couperait tout). CRL de 7 jours (une panne du centre d'une semaine ferait tomber la fédération).
+**Limite assumée.** Contrôle fermé par défaut : une CRL expirée coupe tous les liens du site. Secours nommé : `authClientCertRevocationCheckMode: none` sur le broker.
+**Touche.** D-006 et D-013 (émission depuis une CSR, durée), D-033 (arrêt avant la première écriture réelle dans `/srv/peaas-ca`), D-044 (§ 6 du doc 13), D-048 (ordres typés).
+**Statut.** Retenu (go de Lord, 23/11). En cours : K1 à K4 ; K5 (banc) après accord de Lord pour l'autorité (D-033).
 
 ---
 

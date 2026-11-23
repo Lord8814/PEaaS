@@ -951,3 +951,32 @@ absence prouvée), puis `9b9e862`. Base SMRP relevée à chaque temps
   dans le package.
 - Filet complet final `filet-20261122t152755z-c0c398` : **31/31** (contrat
   30/30 sur les trois packages, exécuteur rechargé par la réinstallation).
+
+## 23/11/2026 — Révocation par CRL sur un lien DMR (essai jetable, D-049)
+
+Deux brokers `solace-pubsub-standard` jetables (`soltr_10.26.0.8827`, conteneurs
+`x1` et `x2` sur la VM du générateur, `system_scaling_maxconnectioncount=1000`,
+`nofile` 1048576), CA jetable (openssl), lien DMR externe en certificat client
+(x1 initiateur), CRL servie en HTTP par un conteneur `crlsrv`. Contrôle :
+`certAuthorities/<ca>` (`crlUrl`, `revocationCheckEnabled: true`) et
+`authClientCertRevocationCheckMode: crl` sur les deux brokers. Rechargement :
+`PUT /SEMP/v2/action/certAuthorities/<ca>/refreshCrl`. Après chaque
+changement, lien recyclé (désactivé puis réactivé sur x1), état lu 25 s après.
+Ni le banc ni `/srv/peaas-ca` n'ont servi.
+
+| Essai | Lien |
+|---|---|
+| CRL vide | monte |
+| x1 révoqué | **refusé** ; x2 : « Unauthorized: Revocation Check Failed » ; x1 : « VPN_BRIDGING_LINK_REJECTED … Revocation Check Failed » |
+| x1 révoqué, lien non recyclé | reste établi (contrôle à la connexion) |
+| révocation levée | remonte |
+| CRL expirée (`-crlsec 20`, 30 s plus tard) | **refusé** |
+| serveur CRL arrêté après chargement | monte (dernière CRL gardée, `crlUp` vrai, « DNS resolution failed ») |
+| broker x2 recréé, contrôle actif, CRL introuvable (404) | **refusé** |
+| même broker, CRL publiée à la bonne URL | monte |
+| x2 redémarré, serveur CRL arrêté | monte (CRL gardée à travers le redémarrage) |
+| x1 révoqué, mode global `none` | monte (aucun contrôle) |
+| même état, mode global `crl` | refusé |
+
+Conséquences : D-049 (CRL toujours présente sur le site, 60 jours, recyclage
+des liens après une nouvelle CRL, secours par le mode global).
