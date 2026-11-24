@@ -1055,3 +1055,21 @@ l'écriture dans `/srv/peaas-ca`), la suite par Claude sur son autorisation.
   `applique`.
 - Filet `filet-20261124t085748z-4699e2` (vérification seule) : **25/25**,
   clé d'ordres `3994d1d32402222d` sur les trois sites. Packages supprimés.
+
+## 24/11/2026 — Audit et dérive sur le banc (D-051)
+
+- Livré par le centre (`deployer.js --tous`, catalogue `29f1e80`, générateur
+  `ee26539`) : l'agent est recréé seul (« recrees (configuration changee) :
+  agent », correctif E-15 vérifié). Filet `filet-20261124t094035z-037b04` :
+  31/31.
+- Essai sur site-a à 9 h 43 : une ligne ajoutée à la main à
+  `scripts/setup/apisix.sh`, conteneur `bricole` lancé à la main avec
+  l'étiquette du site. Dérive vue par l'exécuteur à 9 h 50 (moins de
+  10 min) ; filet `filet-20261124t095038z-9bde77` : « dérive » en échec,
+  « 2 écart(s) : fichier modifie scripts/setup/apisix.sh, conteneur en-trop
+  bricole » (et « conteneurs » : bricole sans healthcheck).
+- Remise en ordre : `docker rm -f bricole`, puis `deployer.js --sites site-a` :
+  script restauré, nouvelle photo, 0 écart 20 s après.
+- `audit.js --site site-a` : les deux mises à jour du centre, chacune
+  `installe` + `applique archive ... ordre=...`, lues au journal du centre.
+- Filet final `filet-20261124t095837z-d51bb6` (vérification seule) : **31/31**.

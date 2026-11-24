@@ -788,6 +788,22 @@ La restructuration se fait par marches (M0 à M7). Une marche qui ne change pas 
 
 ---
 
+## D-051 — Audit et dérive des sites, vus du centre
+**Date.** 24/11/2026 (Lord : vérification toutes les 10 min, signaler sans corriger, audit gardé 7 jours ; flux, routes et tables des équipes hors périmètre).
+**Décision.**
+- *Dérive = changement fait depuis la dernière installation officielle.* `install.sh`, à la fin d'une installation réussie (donc aussi après chaque `update-site.sh`), photographie le package : `scripts/derive.sh photo` -> `.peaas/photo.sha256` (tous les fichiers sauf `.env`, `certs/`, `.peaas/`, `*/data`, `*/tls`).
+- *Vérification par l'exécuteur*, sur l'hôte, sous le propriétaire du site, toutes les 10 min et dès que la photo change : `scripts/derive.sh verifier` nomme les fichiers modifiés, absents ou ajoutés, et les conteneurs dont la définition diffère du compose (étiquette `com.docker.compose.config-hash`) ou portant l'étiquette du site sans être dans le compose. Résultat `executeur/data/derive.json`, publié par l'agent dans son état. L'agent ne voit pas le dossier du site (le `.env` lui resterait lisible) : c'est l'exécuteur qui vérifie.
+- *Rien n'est corrigé* (D-047) : remise en ordre par `update-site.sh --archive` (ou depuis le centre) et, pour un conteneur en trop, `docker rm -f` à la main.
+- *Audit.* Les lignes `FIN` de `.peaas/update.log` (`install.sh` y ajoute `FIN installe`) : l'agent republie les 50 dernières à chaque période sur `peaas/_ctrl/<site>/audit` ; le collecteur du centre écarte les doublons et les garde 7 jours dans `executeur/data/audit.jsonl` du centre. Lecture : `node audit.js [--site ID] [--depuis DATE]` sur la VM du générateur.
+- *Métriques et filet.* `peaas_controle_derive_ecarts`, `peaas_controle_derive_age_secondes`, `peaas_controle_audit_a_jour` ; points « dérive » (0 écart, vérifié il y a 15 min au plus) et « audit » (dernier événement du site au journal du centre). Filet : 31 points.
+**Raison.** Le centre doit savoir ce qui a été fait sur chaque site et si un site a été modifié hors des commandes du package (doc 13 § 3, usages 6 et 7).
+**Écarté.** Photo faite par le générateur (une installation modifie des fichiers et la clause de contrat aurait été en plus). Correction automatique. Surveillance des contenus métier (flux Node-RED, routes APISIX, tables, files Solace) : données des équipes. Agent avec tout le dossier du site monté.
+**Limite assumée.** Un fichier ajouté à la main puis suivi d'une installation officielle entre dans la nouvelle photo : signalé entre-temps (10 min), plus ensuite. La mise à jour reste tracée dans l'audit.
+**Touche.** D-044 (doc 13 § 3), D-047, D-048 (exécuteur), D-050 (recréation des services).
+**Statut.** Retenu et prouvé sur le banc le 24/11 : catalogue `29f1e80`, générateur `ee26539` ; filet `filet-20261124t095837z-d51bb6` 31/31 (doc 05).
+
+---
+
 ## D-XXX — *(modèle)*
 **Décision.**
 **Raison.**
