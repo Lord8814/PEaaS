@@ -438,6 +438,23 @@ entre deux ordres son script à celui du package sur l'hôte et s'arrête s'il
 a changé : Docker le relance avec le nouveau. Ce relancement à la main est
 le dernier.
 
+## E-15 — 24/11 — Agents relancés à la main (amorçage, D-050)
+
+**Constat.** La mise à jour `maj-20261124t081944z-*` (catalogue `4ec042d`)
+a livré le nouvel `agent.js`, mais l'agent n'a pas été recréé : son
+conteneur voyait toujours l'ancien fichier (montage d'un fichier, ancien
+inode). Le filet le montrait : « clé d'ordres inconnue » sur les trois sites.
+Le même défaut touchait tout service dont seul un fichier monté changeait.
+
+**Geste.** Après la mise à jour `maj-20261124t084002z-*` (générateur
+`565aed4`), encore lancée par l'ancien `update-site.sh` des sites,
+`docker restart agent` sur site-a, site-b et site-p, une fois.
+
+**Correctif, pour ne plus le refaire.** Depuis `565aed4`,
+`update-site.sh --archive` recrée chaque service dont un fichier a changé
+(`PEAAS_INSTALL_RECREER`, `install.sh` en `--force-recreate`). Ce
+relancement à la main est le dernier.
+
 ## Récapitulatif pour le lot de corrections
 
 | Entrée | Correction | Tâche du lot | Statut |

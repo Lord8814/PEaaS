@@ -772,6 +772,22 @@ La restructuration se fait par marches (M0 à M7). Une marche qui ne change pas 
 
 ---
 
+## D-050 — Clé d'ordres : procédure « clé compromise » et rotation
+**Date.** 24/11/2026 (Lord : version réduite « le plus simple et efficace possible » ; ancienne clé détruite ; rotation sans fuite retenue ; rattrapage au démarrage retenu).
+**Décision.**
+- *Clé compromise.* `deployer.js --nouvelle-cle` : nouvelle paire dans `/srv/peaas-ordres`, l'ancienne clé privée écrasée puis supprimée tout de suite. L'ancienne clé ne signe plus rien, pas même le changement de clé : chaque site passe par la voie locale, `deployer.js --tous --paquets <dossier>` puis `./update-site.sh --archive <package>` sur le site. Guide : `docs/guides/cle-ordres-compromise.md`.
+- *Rotation sans fuite.* `deployer.js --nouvelle-cle --tous` : mise à jour ordinaire signée par l'ancienne clé, dont le package livre la nouvelle clé publique ; si au moins un site l'applique, l'ancienne clé privée est détruite et les sites restants sont nommés (voie locale) ; sinon rien ne change. Une seule clé acceptée à la fois sur un site, sans recouvrement.
+- *Visibilité.* L'agent relit la clé à chaque ordre et publie son empreinte (`cle_ordres`, SHA-256 de la forme DER, 16 caractères) ; métrique `peaas_controle_cle_ordres_info` ; le point « contrôle » du filet échoue si un site n'a pas la clé du centre.
+- *Mise à jour par archive.* `update-site.sh --archive` recrée chaque service dont un fichier du package a changé (`PEAAS_INSTALL_RECREER`) : un fichier monté seul garde son ancien inode dans le conteneur. L'exécuteur reste épargné (il se relance seul, E-14).
+- *Crontab du générateur.* Ligne `@reboot` (15 min après le démarrage) : `renouveler.js --tous` puis `revoquer.js --republier`, pour rattraper les créneaux manqués quand la VM était éteinte (constat du 24/11 : crontab jamais lancée).
+**Raison.** La clé d'ordres permet de faire appliquer n'importe quel package, avec les droits root, sur tous les sites (D-048). La valeur est une procédure prête et prouvée pour le jour où elle fuit, pas une rotation fréquente.
+**Écarté.** Ordre `cle-ordres` dédié (la mise à jour ordinaire livre déjà la clé). Rotation périodique. Période de recouvrement de deux clés. Conservation de l'ancienne clé.
+**Limite assumée.** La destruction écrase puis supprime le fichier, sans garantie d'effacement physique ; une copie de la VM antérieure à la rotation contient l'ancienne clé.
+**Touche.** D-048 (limite assumée levée par la procédure), D-049 (crontab).
+**Statut.** Retenu et prouvé sur le banc le 24/11 : générateur `5eb0ba6`, `565aed4` ; catalogue `4ec042d` ; filet `filet-20261124t085748z-4699e2` 25/25 (doc 05).
+
+---
+
 ## D-XXX — *(modèle)*
 **Décision.**
 **Raison.**

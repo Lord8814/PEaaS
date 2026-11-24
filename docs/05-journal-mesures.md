@@ -1035,3 +1035,23 @@ l'écriture dans `/srv/peaas-ca`), la suite par Claude sur son autorisation.
 - Correctif de l'agent livré à site-b et site-p (`deployer.js`), puis filet
   `filet-20261123t170117z-4960c4` (vérification seule) : **25/25**, point
   « certificats » au vert sur les trois sites (certificat 89 j, CRL 59 j).
+
+## 24/11/2026 — Clé d'ordres compromise : procédure prouvée sur le banc (D-050)
+
+- Reprise : les quatre VM étaient éteintes depuis le 23/11 à 18 h 09 ; la
+  crontab du générateur n'a donc jamais tourné (aucun
+  `~/peaas-certificats.log`). Filet `filet-20261124t074941z-3fddf8` : 25/25.
+- Nouvel agent livré par le centre ; il ne tournait pas (E-15). Après
+  correctif et relance : filet `filet-20261124t084340z-6ea596` 25/25, clé
+  d'ordres `67e3b84026f3cb8b` sur les trois sites.
+- Lord : `deployer.js --nouvelle-cle` (clé compromise) : nouvelle clé
+  `3994d1d32402222d`, ancienne clé privée détruite.
+- Ordre du centre vers site-a : « signature invalide », refusé.
+- `deployer.js --tous --paquets ~/paquets-cle` : trois packages ; voie locale
+  sur site-b (`update-site.sh --archive`, 108 s d'installation).
+- Ordres vers site-a et site-b : site-b `applique`, site-a `refuse`
+  (« signature invalide ») : un site sans la nouvelle clé n'obéit pas.
+- Voie locale sur site-a et site-p ; puis `deployer.js --tous` : trois
+  `applique`.
+- Filet `filet-20261124t085748z-4699e2` (vérification seule) : **25/25**,
+  clé d'ordres `3994d1d32402222d` sur les trois sites. Packages supprimés.
