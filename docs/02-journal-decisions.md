@@ -830,7 +830,7 @@ La restructuration se fait par marches (M0 à M7). Une marche qui ne change pas 
 **Raison.** Doc 13 § 4 et réponses de Lord (doc 16 § 1). Le centre ne transporte aucune donnée, et sa panne ne coupe pas les partenaires. Aucun programme en plus : Solace sait déjà faire. L'essai jetable du 24/11 (doc 05) prouve les ACL MQTT/SMF, la révocation et le refus d'un certificat de site, mais montre qu'avec `CN = *` un certificat de partenaire monte un lien DMR.
 **Écarté.** Relais au centre (option B du doc 13 : centre sur le chemin des données). Pont sortant du site vers le broker du partenaire (programme en plus, broker exigé chez le partenaire). REST poussé (sortie du site). Mot de passe (Lord : certificat). Seconde CA pour les partenaires (P10 suffit et reste plus simple).
 **Touche.** D-044 (centre sans données), D-047 (le package ne touche qu'à lui-même), D-048 (livraison), D-049 (CA, CRL, 90 jours), D-052 (alerte J-14 étendue aux partenaires), contrat de site.
-**Statut.** Conception et essai jetable faits le 24/11 (doc 16). P10 fait et prouvé sur le banc le 24/11 : catalogue `25f0124`, générateur `ca587a9`, filet `filet-20261124t132105z-38b64b` 35/35. Module partenaire : à coder.
+**Statut.** Conception et essai jetable faits le 24/11 (doc 16). P10 fait et prouvé sur le banc le 24/11 : catalogue `25f0124`, générateur `ca587a9`, filet `filet-20261124t132105z-38b64b` 35/35. Module partenaire codé et livré sur le banc sans partenaire le 24/11 (catalogue `b360cc9`, générateur `67f8304`, doc 16 § 5 bis) ; deux correctifs nés de la livraison : attente de SEMP 600 s, délai de grâce de 240 s pour un conteneur `unhealthy` (doc 05). Reste : preuve avec un partenaire réel, P9.
 
 ---
 

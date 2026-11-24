@@ -14,6 +14,8 @@ ou modifie ce contrat avec la décision qui le justifie (D-042).
 
 **Version 4 — 23/11/2026.** Décision : D-049 (certificats de 90 jours, révocation par CRL). I3 attend aussi `certs/federation.crl.der` ; clauses I7 (certificat du site de 90 jours au plus) et I8 (CRL signée par l'autorité livrée, valable encore 14 jours au moins). Package de mise à jour : I7 et I8 sans objet (le site garde son certificat et sa CRL). 32 clauses.
 
+**Version 5 — 24/11/2026.** Décision : D-053 (module partenaire). Le port 8883 de `solace` (MQTT/TLS, porte des partenaires hors fédération) entre au tableau des flux publiés : R2 l'admet. Publié sur chaque site (compose identique, D-009) ; le broker n'y écoute que si le site a un partenaire. Aucune nouvelle clause : la configuration du broker (règles de certificat DMR, comptes des partenaires) ne se juge pas sur l'archive, le filet la vérifie (point « règles DMR »). 32 clauses.
+
 Un site n'existe que par son package : l'archive `peaas-<id>.tar.gz` que le
 générateur produit pour lui. Ce document dit ce que cette archive doit être.
 Il est le pendant de D-019 : D-019 est le contrat de la machine hôte, celui-ci
@@ -82,7 +84,8 @@ Les trois flux inter-sites (documentation de référence, section 8.1) :
 
 | Flux | Service | Port du conteneur | Nature |
 |---|---|---|---|
-| 1 | `solace` | 55443 | DMR sur TLS mutuel |
+| 1 | `solace` | 55443 | DMR sur TLS mutuel ; partenaires en SMF/TLS (D-053) |
+| 1 bis | `solace` | 8883 | partenaires hors fédération en MQTT/TLS, certificat client (D-053) ; le broker n'écoute que si le site a un partenaire |
 | 2 | `apisix` | 9080 | appels entre passerelles |
 | 3 | `postgres` | 5432 | consultation de base distante, TLS côté serveur |
 

@@ -1142,3 +1142,37 @@ Conséquences pour D-053 :
 - Non rejoué sur le banc : un lien monté avec un certificat de partenaire signé
   par la vraie CA (il faudrait signer avec `/srv/peaas-ca`). Prouvé sur brokers
   jetables le même jour ; à rejouer quand le premier certificat de partenaire existera.
+
+## 24/11/2026 — Module partenaire : essai du script réel, livraisons (D-053)
+
+**Script `solace-partenaires.sh` sur broker jetable** (`x1`, `~/spike-partenaire/essai-reel.sh`) :
+
+| Étape | Résultat |
+|---|---|
+| E1 pose (VPN en certificat, MQTT/TLS 8883, ACL fermée, compte sans mot de passe) | 5 écritures |
+| E2 rejeu | aucune écriture |
+| E3 partenaire abonné à un topic accordé, l'appli publie | reçu |
+| E4 « lit » changé, partenaire connecté | exception remplacée (clé `smf,app%2Fx1%2Fcommandes%2F%3E`), connexion coupée (`#mqtt/primary/spk-px`), ancien topic refusé |
+| E5 `--couper-tous` | connexion coupée |
+| E6 profil sans partenaire | compte désactivé, coupé, supprimé ; ACL supprimée ; VPN refermé (certificat et MQTT/TLS à false) |
+| E7 rejeu sans partenaire | aucune écriture |
+
+**Livraisons sur le banc (sans partenaire déclaré)** :
+- 14 h 04 (générateur `ef41df3`, catalogue `3142abd`) : **ÉCHEC sur les trois sites**, version
+  précédente restaurée mais son installation en échec aussi. Le compose de Solace change (port
+  8883) : Solace est **recréé**. Deux causes :
+  1. `solace.sh` attend SEMP 120 s (`ECHEC SEMP injoignable … apres 120s`, en fin de journal de
+     l'ordre : l'exécuteur ajoute la sortie d'erreur après la sortie standard). Un broker recréé
+     met environ 4 min à ouvrir SEMP (site-a : processus lancé à 14 h 33 m 33 s, contrôles de
+     démarrage finis à 14 h 36 m 48 s, MQTT de nouveau accepté à 14 h 40 m 18 s).
+  2. L'agent passe `unhealthy` tant que MQTT est fermé ; l'étape 9 arrêtait aussitôt sur `unhealthy`.
+- 14 h 27 (générateur `70aa7ff` : délai de grâce de 240 s à l'étape 9) : même échec (cause 1).
+- 14 h 43 (catalogue `b360cc9` : attente de SEMP portée à 600 s dans `solace.sh`,
+  `solace-dmr.sh`, `solace-partenaires.sh` ; générateur `67f8304`) : **SUCCES sur les trois
+  sites**. site-a : `agent healthy (retabli apres 121s unhealthy)`.
+- Entre les tentatives, les sites sont restés sains (retour à la version P10), liens montés.
+- Filet `filet-20261124t145302z-e25057` (vérification seule) : 34/35. « exposition » accepte
+  8883 sur les trois sites ; messages reçus sur les deux arêtes après la recréation des trois
+  brokers (SMRP sain). Échec : « alertes », `PeaasMiseAJourEnEchec` sur les trois sites, juste
+  (les deux livraisons ratées de la dernière heure).
+- Tests : 590 (589 ok, 0 échec).

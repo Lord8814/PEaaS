@@ -112,6 +112,32 @@ trou n'est pas exploitable, mais il le deviendrait avec le premier partenaire.
 - Attaque rejouée sur le banc : un broker jetable monte un lien vers un site
   avec le certificat du faux partenaire. Attendu : refusé.
 
+## 5 bis. État au 24/11 (fin d'après-midi)
+
+Fait (catalogue `3142abd` puis `b360cc9`, générateur `ef41df3`, `70aa7ff`, `67f8304`) :
+- topologie : `sites.<site>.partenaires` (`nom`, `lit`, `ecrit`), contrôlée (P1, P11, pas de
+  partenaire sur le centre, nom de 21 caractères au plus pour tenir dans un profil ACL Solace) ;
+  rendue dans `site-profile.yaml` ;
+- `scripts/setup/solace-partenaires.sh`, lancé par `solace.sh` après `solace-dmr.sh` : compte et
+  ACL par partenaire, VPN en certificat et MQTT/TLS seulement s'il y a un partenaire, retrait,
+  coupure des connexions quand l'ACL change (P8, P12) ; `--couper-tous` après chaque nouvelle CRL
+  (`update-site.sh --crl`) ;
+- port 8883 publié sur chaque site (contrat v5, filet « exposition ») ;
+- `partenaire.js` sur la VM du générateur : `signer` (CSR du partenaire, CN imposé, usage client
+  seul, 90 jours), `resigner` (même CSR dès J-30), `liste`, `revoquer` (CRL diffusée) ;
+- livré sur le banc sans partenaire (SUCCES au 3e essai, doc 05).
+
+Écarts à la conception :
+- **Pas de champ `protocoles`** : Solace ne sait pas réserver MQTT ou SMF à un compte ; l'ACL
+  vaut pour les deux.
+- **Pas d'alerte J-14 pour les partenaires** (P6) : leurs certificats vivent dans le magasin de
+  la CA, que le Prometheus du centre ne voit pas. `partenaire.js liste` donne les jours restants ;
+  `resigner` en crontab les renouvelle.
+- **P9 (partenaires connectés vus au centre) : pas fait.**
+
+Reste : preuve avec un vrai partenaire sur le banc (déclaration, signature par Lord, point de
+filet « partenaire »), P9.
+
 ## 6. Hors du lot
 
 - **L'annuaire** des applications exposées (vitrine pour trouver une appli et
