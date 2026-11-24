@@ -804,6 +804,21 @@ La restructuration se fait par marches (M0 à M7). Une marche qui ne change pas 
 
 ---
 
+## D-052 — Alertes de la plateforme centrale, visibles dans Grafana (OP4, L3)
+**Date.** 24/11/2026 (Lord : alertes « seulement Grafana », délais validés).
+**Décision.**
+- *Règles Prometheus* au catalogue (`prometheus/alertes.yml`, montée en lecture seule, `rule_files` dans `prometheus.yml`), 11 règles : site muet (état > 5 min, pendant 5 min), sonde en échec (5 min), contrat non conforme (5 min), dérive (tout de suite), dérive non vérifiée (30 min), certificat < 14 jours, CRL < 14 jours (ou absente), ordre en échec ou refusé dans l'heure, audit en retard (15 min), clés d'ordres différentes entre sites (15 min), agent injoignable par Prometheus (5 min).
+- *Aucun envoi vers l'extérieur.* Les alertes actives se lisent dans le Grafana du centre (tableau « graphe de la fédération » : nombre d'alertes actives et tableau quoi/où, d'après `ALERTS`) et sur `/alerts` de Prometheus. Pas d'Alertmanager.
+- *Filet* : point « alertes » au centre (règles chargées, aucune alerte active), 32 points.
+- *Règles testées* par `promtool check rules` et `promtool test rules` (scénarios : site muet, dérive, certificat, ordre refusé, clés différentes) dans `alertes.test.js`.
+**Raison.** Doc 13 § 7 (OP4) et D-044 (alerte à J-14). Lord ne veut pas de canal de notification pour l'instant : la lecture dans Grafana suffit.
+**Écarté.** Alertmanager (rien à envoyer). Webhook et courriel. Rappel toutes les 4 h (accepté par Lord, sans objet sans canal ; à reprendre avec un canal). Surveillance du centre par un service extérieur (« homme mort »).
+**Limite assumée.** Personne n'est prévenu : il faut regarder Grafana ou lancer le filet. Si le centre tombe, aucune alerte (les sites continuent sans lui).
+**Touche.** D-044, D-049 (certificats, CRL), D-050 (clé d'ordres), D-051 (dérive, audit).
+**Statut.** Retenu et prouvé sur le banc le 24/11 : catalogue `aa7a039`, générateur `10944d3` ; filet `filet-20261124t104934z-9cfe81` 32/32 (doc 05).
+
+---
+
 ## D-XXX — *(modèle)*
 **Décision.**
 **Raison.**

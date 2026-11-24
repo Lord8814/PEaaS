@@ -1073,3 +1073,15 @@ l'écriture dans `/srv/peaas-ca`), la suite par Claude sur son autorisation.
 - `audit.js --site site-a` : les deux mises à jour du centre, chacune
   `installe` + `applique archive ... ordre=...`, lues au journal du centre.
 - Filet final `filet-20261124t095837z-d51bb6` (vérification seule) : **31/31**.
+
+## 24/11/2026 — Alertes au centre sur le banc (D-052)
+
+- Livré par le centre (`deployer.js --tous`, catalogue `aa7a039`, générateur
+  `10944d3`). Filet `filet-20261124t103238z-6e0f16` : 32/32, « 11 règles
+  chargées au centre, aucune alerte active ».
+- Agent de site-b arrêté à 10 h 35 (`docker stop agent`) : PeaasSondeEnEchec
+  en attente à 10 h 38, active à 10 h 43 ; PeaasSiteMuet en attente à
+  10 h 41, active à 10 h 46. Filet : « alertes » en échec, « 2 alerte(s)
+  active(s) : PeaasSiteMuet (site-b), PeaasSondeEnEchec (site-b) ».
+- Agent relancé à 10 h 48 : plus aucune alerte active à 10 h 49.
+- Filet final `filet-20261124t104934z-9cfe81` (vérification seule) : **32/32**.
