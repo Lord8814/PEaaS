@@ -819,6 +819,21 @@ La restructuration se fait par marches (M0 à M7). Une marche qui ne change pas 
 
 ---
 
+## D-053 — Module partenaire : un consommateur hors fédération se branche sur le site
+**Date.** 24/11/2026 (Lord : module sur le site, « comme pour Internet » ; le partenaire vient au site ; sens déclaré par topic ; MQTT/TLS de base, SMF/TLS si besoin ; certificat).
+**Décision.**
+- Un consommateur hors fédération (partenaire) ne passe pas par le centre. Le centre accorde au site qui en a besoin un module `partenaire` (topologie : `sites.<site>.partenaires`), livré par `deployer.js` (D-048).
+- Le module n'est que de la configuration du broker du site. Il crée un compte au nom du partenaire, avec une ACL fermée sauf les topics « lit » et « écrit », tous dans `app/<site>/…`. `peaas/_ctrl/` reste toujours refusé. Il ouvre MQTT/TLS 8883 seulement si un partenaire existe ; SMF/TLS passe par 55443, déjà ouvert.
+- Identité : certificat de la CA de la fédération, CN = nom du partenaire, 90 jours, signé sur la CSR du partenaire et resigné par le centre dès J-30. Retrait = compte supprimé, certificat révoqué, connexions coupées.
+- Socle durci (P10) : la règle DMR `common-name = *` est remplacée par une règle par site voisin accordé.
+- Un nom de partenaire n'est jamais un nom de site, ni `default`, ni `peaas-*`.
+**Raison.** Doc 13 § 4 et réponses de Lord (doc 16 § 1). Le centre ne transporte aucune donnée, et sa panne ne coupe pas les partenaires. Aucun programme en plus : Solace sait déjà faire. L'essai jetable du 24/11 (doc 05) prouve les ACL MQTT/SMF, la révocation et le refus d'un certificat de site, mais montre qu'avec `CN = *` un certificat de partenaire monte un lien DMR.
+**Écarté.** Relais au centre (option B du doc 13 : centre sur le chemin des données). Pont sortant du site vers le broker du partenaire (programme en plus, broker exigé chez le partenaire). REST poussé (sortie du site). Mot de passe (Lord : certificat). Seconde CA pour les partenaires (P10 suffit et reste plus simple).
+**Touche.** D-044 (centre sans données), D-047 (le package ne touche qu'à lui-même), D-048 (livraison), D-049 (CA, CRL, 90 jours), D-052 (alerte J-14 étendue aux partenaires), contrat de site.
+**Statut.** Conception et essai jetable faits le 24/11 (doc 16). À coder.
+
+---
+
 ## D-XXX — *(modèle)*
 **Décision.**
 **Raison.**

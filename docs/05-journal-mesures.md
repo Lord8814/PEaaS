@@ -1085,3 +1085,42 @@ l'écriture dans `/srv/peaas-ca`), la suite par Claude sur son autorisation.
   active(s) : PeaasSiteMuet (site-b), PeaasSondeEnEchec (site-b) ».
 - Agent relancé à 10 h 48 : plus aucune alerte active à 10 h 49.
 - Filet final `filet-20261124t104934z-9cfe81` (vérification seule) : **32/32**.
+
+## 24/11/2026 — Module partenaire : essai sur brokers jetables (D-053)
+
+Deux brokers `solace-pubsub-standard` jetables (`soltr_10.26.0.8827`, `x1` et
+`x2` sur la VM du générateur, réseau `spk-p`), CA jetable (copie de celle du
+23/11), CRL servie par `crlsrv-p`. Configuration au plus près du socle : VPN en
+mot de passe interne, compte `default` désactivé, lien DMR externe en
+certificat client avec la règle du socle (`common-name` = `*`), contrôle de
+révocation `crl`. Sur `x1` : authentification par certificat sur le VPN
+(username = CN), MQTT/TLS 8883, comptes `transporteur-x` et `transporteur-y`
+(ACL fermée, exceptions en syntaxe `smf` : abonnement `app/x1/commandes/>`,
+publication `app/x1/livraisons/>`). Clients : `eclipse-mosquitto:2` (MQTT/TLS)
+et `solace-pubsubplus` en Python (SMF/TLS 55443). Scripts : `~/spike-partenaire`.
+Ni le banc ni `/srv/peaas-ca` n'ont servi. Brokers retirés après l'essai.
+
+| Essai | Résultat |
+|---|---|
+| MQTT : partenaire lit `app/x1/commandes/#` (appli publie, mot de passe) | **reçu** |
+| MQTT : abonnement `app/x1/autre/#`, `peaas/_ctrl/#`, `#` | **refusé** (« All subscription requests were denied ») |
+| MQTT : publication sur `app/x1/livraisons/l1` | **reçue** par l'appli |
+| MQTT : publication sur `app/x1/autre/z`, `peaas/_ctrl/x1/etat` | **non livrée** |
+| SMF/TLS 55443 : lecture et écriture accordées | **reçues** |
+| SMF : abonnement hors accord | **refusé** (403 « Subscription ACL Denied ») |
+| SMF : publication hors accord | **non livrée** |
+| Certificat CN=`x2` (nom de site, sans compte) | **refusé** (MQTT « not authorised », SMF « Client Username Is Shutdown ») |
+| Appli en mot de passe (SMF), certificat activé sur le VPN | connectée ; mauvais mot de passe refusé |
+| Lien DMR avec le certificat du **partenaire**, règle `CN = *` | **le lien monte** (trou) |
+| Même essai, règle `CN = <nom du voisin>` | **refusé** (« Channel(s) Down ») ; certificats de site remis : le lien remonte |
+| Deux règles (`CN=autre-site`, `CN=x2`) | le lien monte : les règles s'additionnent (OU) |
+| `transporteur-y` révoqué, CRL rechargée | **refusé** en MQTT et en SMF (« Revocation Check Failed ») ; `transporteur-x` accepté |
+| Partenaire connecté, puis révoqué | **reste connecté** (contrôle à la connexion) ; coupé par `action/…/clients/<nom>/disconnect` |
+| Lien DMR pendant tout l'essai | en place |
+
+Conséquences pour D-053 :
+- Les ACL en syntaxe `smf` valent aussi pour MQTT : `…/>` côté ACL couvre `…/#` côté client.
+- **La règle DMR `CN = *` du socle doit être restreinte** aux noms des sites voisins
+  avant de signer le moindre certificat de partenaire avec la même CA.
+- Un nom de partenaire ne doit jamais être un nom de site.
+- Après une révocation, il faut couper les connexions du partenaire, comme on recycle les liens.
