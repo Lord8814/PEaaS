@@ -1124,3 +1124,21 @@ Conséquences pour D-053 :
   avant de signer le moindre certificat de partenaire avec la même CA.
 - Un nom de partenaire ne doit jamais être un nom de site.
 - Après une révocation, il faut couper les connexions du partenaire, comme on recycle les liens.
+
+## 24/11/2026 — Règles de certificat DMR par pair sur le banc (D-053, P10)
+
+- Catalogue `25f0124` (`solace-dmr.sh` : une règle `peaas-pair-<id>` par pair,
+  `common-name = <id>`, posée avant le retrait de toute autre règle ;
+  `verifier-federation.sh` affiche les règles et signale une règle ouverte),
+  générateur `ca587a9` (point de filet « règles DMR »). 552 tests, 0 échec
+  après réécriture des archives de référence (seuls les deux scripts changent).
+- Livraison `deployer.js --tous` (13 h 17) : SUCCES sur les trois sites, aucune
+  signature par la CA. Après livraison : site-a et site-b ont `peaas-pair-site-p`,
+  site-p a `peaas-pair-site-a` et `peaas-pair-site-b` ; `peaas-federation`
+  (`CN = *`) retirée partout. Liens restés montés pendant la livraison.
+- Liens du centre recyclés (`solace-dmr.sh --recycler-liens` sur site-p) : les
+  deux liens remontent sous les nouvelles règles.
+- Filet `filet-20261124t132105z-38b64b` (vérification seule) : **35/35**.
+- Non rejoué sur le banc : un lien monté avec un certificat de partenaire signé
+  par la vraie CA (il faudrait signer avec `/srv/peaas-ca`). Prouvé sur brokers
+  jetables le même jour ; à rejouer quand le premier certificat de partenaire existera.

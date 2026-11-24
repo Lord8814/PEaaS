@@ -92,7 +92,7 @@ trou n'est pas exploitable, mais il le deviendrait avec le premier partenaire.
 
 | # | Choix | Raison |
 |---|---|---|
-| P10 | **Règle DMR restreinte** : une règle par site voisin accordé, `common-name = <nom du site>`, au lieu de `CN = *`. Le centre a une règle par site ; un site a la règle du centre et celles de ses liens directs. | Ferme le point 4b. Les règles s'additionnent (essai S4). Le contrat le vérifie. |
+| P10 (**fait le 24/11**, filet 35/35) | **Règle DMR restreinte** : une règle par site voisin accordé, `common-name = <nom du site>`, au lieu de `CN = *`. Le centre a une règle par site ; un site a la règle du centre et celles de ses liens directs. | Ferme le point 4b. Les règles s'additionnent (essai S4). Le contrat le vérifie. |
 | P11 | **Un nom de partenaire n'est jamais un nom de site** (le générateur refuse), ni `default`, ni `peaas-*`. | Sinon le CN du partenaire passerait la règle P10 ou prendrait un compte du socle. |
 | P12 | **Retirer ou révoquer un partenaire coupe ses connexions** (`disconnect` des clients de son compte), comme on recycle les liens après une CRL. | Une connexion ouverte n'est pas recontrôlée (essai S2). |
 
