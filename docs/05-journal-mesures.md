@@ -1176,3 +1176,10 @@ Conséquences pour D-053 :
   brokers (SMRP sain). Échec : « alertes », `PeaasMiseAJourEnEchec` sur les trois sites, juste
   (les deux livraisons ratées de la dernière heure).
 - Tests : 590 (589 ok, 0 échec).
+
+## 25/11/2026 — Preuve du module partenaire sur le banc (D-053)
+
+- Partenaire de test `transporteur-test` sur site-a ; certificat signé par Lord (série 14902381…, 90 jours).
+- `deployer.js --sites site-a` : SUCCES (le générateur refuse un dépôt non commité : commit local de la topologie).
+- MQTT/TLS 8883, MQTT 5 : abonnement « lit » et publication « écrit » acceptés ; tout le reste refusé (publication « lit », abonnement « écrit », autre site, `peaas/_ctrl`, `#`, hors de son espace) ; sans certificat et hors fédération refusés.
+- Filet `filet-20261125t092849z-8243c7` (vérification seule) : 35 ok, 0 échec, point « partenaire » vert.

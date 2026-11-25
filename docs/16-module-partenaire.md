@@ -135,8 +135,29 @@ Fait (catalogue `3142abd` puis `b360cc9`, générateur `ef41df3`, `70aa7ff`, `67
   `resigner` en crontab les renouvelle.
 - **P9 (partenaires connectés vus au centre) : pas fait.**
 
-Reste : preuve avec un vrai partenaire sur le banc (déclaration, signature par Lord, point de
-filet « partenaire »), P9.
+Reste : P9. (La preuve avec un partenaire de test est faite le 25/11, voir 5 ter.)
+
+## 5 ter. Preuve avec un partenaire de test (25/11)
+
+Déroulé sur le banc, avec le partenaire de test `transporteur-test` déclaré sur site-a
+(`lit` : `app/site-a/commandes/>`, `ecrit` : `app/site-a/livraisons/>`) :
+1. Déclaration dans `topology.yaml` (committée en local, le générateur refuse de générer depuis un dépôt non commité).
+2. Le partenaire fabrique sa clé et sa CSR ; seule la CSR va au générateur (P5).
+3. Lord signe : `partenaire.js signer --nom transporteur-test --csr … --sortie …` (90 jours).
+4. `deployer.js --sites site-a` : SUCCES, 8883 écoute sur site-a.
+5. Essai MQTT/TLS 8883 avec le certificat du partenaire (mosquitto, MQTT 5) :
+   - accepté : abonnement à un topic « lit », publication sur un topic « écrit » ;
+   - refusé : publication sur un topic « lit », abonnement à un topic « écrit », abonnement à
+     `app/site-b/#`, à `peaas/_ctrl/#` et à `#`, publication hors de son espace ;
+   - refusé : connexion sans certificat, et avec un certificat hors de la fédération.
+
+Le filet gagne le point **partenaire** (`filet.js`, `verifierPartenaires`) : pour chaque
+partenaire déclaré, les 7 cas ci-dessus plus la connexion sans certificat. Il ne signe rien : il
+utilise la clé et le certificat déposés par Lord dans `~/banc-partenaire/` de la VM du générateur
+(`<nom>.key`, `<nom>.crt.pem`, `federation-ca.crt.pem`, comme les écrit `partenaire.js signer`),
+ou le dossier de `--partenaire-dossier`. Fichiers absents : point « non lancé », pas un faux vert.
+Le certificat dure 90 jours : après `partenaire.js resigner`, recopier le nouveau certificat dans
+ce dossier. Filet du 25/11 : 35 ok, 0 échec.
 
 ## 6. Hors du lot
 
